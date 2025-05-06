@@ -78,6 +78,68 @@ distneastfeat<-function(data_original, data_feat, n_variable, tipo_dato){
   return(data_original)
 }
 
+#Para traer más variables
+distneastfeatvar<- function(data_original, data_feat, 
+                          n_variable_distancia, 
+                          tipo_dato = "punto", 
+                          variables_adicionales = NULL,
+                          sufijo_adicional = "_cercano") {
+  
+  # Calcular centroides si data_feat es polígono
+  if (tipo_dato == "poligono") {
+    data_feat <- st_centroid(data_feat, byid = TRUE)
+  }
+  
+  # Calcular matriz de distancias
+  dist_matrix <- st_distance(data_original, data_feat)
+  
+  # Obtener distancia mínima y su posición
+  dist_min <- apply(dist_matrix, 1, min)
+  idxs_mas_cercanos <- apply(dist_matrix, 1, which.min)
+  
+  # Asignar distancia mínima
+  data_original[[n_variable_distancia]] <- dist_min
+  
+  # Si se piden variables adicionales, asignarlas también
+  if (!is.null(variables_adicionales)) {
+    if (!all(variables_adicionales %in% names(data_feat))) {
+      stop("Alguna de las variables adicionales no está en 'data_feat'.")
+    }
+    
+    for (var in variables_adicionales) {
+      nuevo_nombre <- paste0(var, sufijo_adicional)
+      data_original[[nuevo_nombre]] <- data_feat[[var]][idxs_mas_cercanos]
+    }
+  }
+  
+  return(data_original)
+}
+
+#Halla distancias de forma iterativa - esta ocupa menos RAM
+nearestpointloop <- function(base_objetivo, base_fuente, variables_fuente, sufijo = "_cercano") {
+  # Validaciones
+  if (!inherits(base_objetivo, "sf") || !inherits(base_fuente, "sf")) {
+    stop("Ambas bases deben ser objetos 'sf'.")
+  }
+  
+  if (!all(variables_fuente %in% names(base_fuente))) {
+    stop("Algunas variables no existen en la base fuente.")
+  }
+  
+  # Crear matriz de distancias (filas = base_objetivo, columnas = base_fuente)
+  distancias <- st_distance(base_objetivo, base_fuente)  # matriz [nrow(objetivo) x nrow(fuente)]
+  
+  # Para cada fila de base_objetivo, encontrar el índice del punto más cercano en base_fuente
+  idxs_mas_cercanos <- apply(distancias, 1, which.min)
+  
+  # Para cada variable solicitada, pegarla desde el punto más cercano
+  for (var in variables_fuente) {
+    nuevo_nombre <- paste0(var, sufijo)
+    base_objetivo[[nuevo_nombre]] <- base_fuente[[var]][idxs_mas_cercanos]
+  }
+  
+  return(base_objetivo)
+}
 
 # Cargar datos -----------------------------------------------------------------
 
@@ -167,4 +229,19 @@ recaudo_predial <- recaudo_predial %>%
 
 datos <- st_join(datos, recaudo_predial, join = st_within)
 
+## Datos OpenStreetMap ---------------------------------------------------------
 
+#Revisamos datos disponibles de OSM
+available_features()
+available_tags("shop")
+
+#Aplicamos 'obtener_osmdata' para obtener los parques y centros comerciales de Bogotá
+parques<- obtener_osmdata('leisure', 'park', 'poligono')
+malls <- obtener_osmdata('shop', 'mall', 'poligono')
+malls <- st_make_valid(malls)
+
+#Aplicamos 'distneastfeat' para hallar la distancia mínima
+datos <- distneastfeatvar(datos, parques, 'distnearestpark', 'poligono')
+datos <- distneastfeatvar(datos, malls, 'distnearestmall', 'poligono')
+
+export(datos, 'datos_unidos.rds')
