@@ -1,0 +1,673 @@
+#Trabajo Final R MECA ----------------------------------------------------------
+rm(list = ls())
+
+#0. Preparación espacio de trabajo ---------------------------------------------
+
+##0.1. Librerias----------------------------------------------------------------
+
+#install.packages("pacman")
+library("pacman")
+
+remotes::install_cran("httr2") 
+install.packages("httr2", type = "binary")
+
+p_load(tidyverse, openxlsx, stringi, rio, stringi, leaflet, 
+       osmdata, sf, httr2, stargazer, caret, MLmetrics, ggspatial, ranger)
+
+
+##0.2. Directorio ------------------------------------------------------
+
+# Obtener el nombre de usuario del sistema operativo
+usuario <- Sys.info()["user"]
+
+# Crear el directorio condicional dependiendo del usuario
+if (usuario == "Natalia") {
+  setwd("C:/Users/Natalia/OneDrive - Universidad de los Andes/Documentos/2024-2/R/Trabajo-Final-R-MECA")
+} else if (usuario == "hugos") {
+  setwd("C:/Users/hugos/OneDrive - Universidad de los andes/MECA/Semestre 1/taller R/Trabajo-Final-R-MECA") 
+} else {
+  setwd("")  # Fijar otro directorio
+}
+
+#1. Datos de vivienda nueva-----------------------------------------------------
+
+##1.1. Importar datos ----------------------------------------------------------
+
+datos_proyectos <- read.xlsx("Stores/Base_TF_R.xlsx", "Proyectos")
+datos_aptos <- read.xlsx("Stores/Base_TF_R.xlsx", "Formulada")
+
+##1.2. Seleccionar variables ---------------------------------------------------
+
+datos_proyectos <- datos_proyectos %>% select(Codproyecto, Proyecto, Estrato,
+                                              Barrio, Estado, Dirección, Tiene.Sala.Ventas,
+                                              Coordenadas.Reales, `Latitud.(Coordenada.Real)`,
+                                              `Longitud.(Coordenada.Real)`, Fecha.Terminacion.Obra,
+                                              Municipio, Fecha.Ultima.Venta.Proy.)
+
+datos_aptos <- datos_aptos %>% select(Codproyecto, Codinmueble, Tipo, Area, Alc., Baños.Completos,
+                                      Baños.sin.Terminar, `#.Gar.`, Area.Patio, Area.Terraza.o.Balcon, 
+                                      `Estudio/Estar`, Depósito, Garaje, starts_with("P"), starts_with("V"),
+                                      Oferta.Total.Inm., Oferta.Total.Proyecto)
+##1.3. Unir datos --------------------------------------------------------
+datos_completos <- left_join(datos_aptos, datos_proyectos, by="Codproyecto")
+
+##1.4. Limpieza variables ------------------------------------------------
+
+#Arreglar los nombres de las variables
+names(datos_completos) <- gsub("[#()/]", "", names(datos_completos)) #Quitar caractéres no alfanpuméricos
+names(datos_completos) <- sub("^\\.", "", names(datos_completos)) # Quitar puntos al principio de los nombres
+names(datos_completos) <- sub("\\.$", "", names(datos_completos)) #Quitar puntos del final de los nombres 
+names(datos_completos) <- gsub("\\.", "_", names(datos_completos)) # Reemplazar otros puntos por _ 
+names(datos_completos) <- tolower(names(datos_completos)) #Nombres de las variables a minúscula
+names(datos_completos) <- stri_trans_general(names(datos_completos), "Latin-ASCII") #Quitar tíldes de los nombres
+
+#Filtramos por ciudad
+
+datos_completos <- datos_completos %>% filter(municipio=='Bogota')
+
+#Selección de variables de interés
+
+datos_filtrados <- datos_completos %>%
+  select(
+    codproyecto,
+    codinmueble,
+    tipo,
+    area,
+    alc,
+    banos_completos,
+    gar,
+    area_patio,
+    estudioestar,
+    deposito,
+    garaje,
+    poct24,
+    valor_garaje,
+    estrato,
+    tiene_sala_ventas,
+    latitud_coordenada_real,
+    longitud_coordenada_real,
+    municipio,
+    proyecto_y,
+    barrio
+  )
+
+##1.5. Exportar datos de apartamentos ------------------------------------
+
+export(datos_filtrados,'Stores/TF_limpia.rds')
+
+
+#2. Otras fuentes de datos geográficos -----------------------------------
+
+rm(list = ls())
+TF <- import('Stores/TF_limpia.rds')
+TF <- st_as_sf(TF, coords = c("longitud_coordenada_real", "latitud_coordenada_real"),crs=4326)
+
+##2.1. Creación de funciones necesarias ----------------------------------------
+
+#Función para obtener los datos que requerimos de OpenStreetMap
+obtener_osmdata <- function(llave, valor, tipo_dato){
+  
+  ### Utilizamoas osm para bogota
+  data <- opq(bbox = getbb("Bogotá Colombia")) %>%
+    add_osm_feature(key = llave , value = valor)
+  
+  #Cambios el tipo de objeto
+  data<- osmdata_sf(data)
+  
+  #Dejamos poligonos y name y id
+  
+  if (tipo_dato=='linea'){
+    data <- data$osm_lines %>% 
+      select(osm_id, name) 
+  }
+  
+  else if (tipo_dato=='puntos'){
+    data <- data$osm_points %>% 
+      select(osm_id, name) 
+  }
+  
+  else if (tipo_dato=='poligono'){
+    data <- data$osm_polygons %>% 
+      select(osm_id, name) 
+  }
+  
+  # Convertimos a tipo de objeto sf
+  data<-st_as_sf(data, crs=4326)
+  
+  #Cambiamos crs
+  data<-st_transform(data, crs=4326)
+  return(data)
+  
+}
+
+#Función para hallar distancia mínima
+distneastfeat<-function(data_original, data_feat, n_variable, tipo_dato){
+  
+  ##Calculamos centroides si poligono
+  if (tipo_dato=='poligono'){
+    data_feat <- st_centroid(data_feat, byid = T)
+  }
+  else{
+    NA
+  }
+  ##Calculamos distancias
+  dist_matrix <- st_distance(x = data_original, y = data_feat)
+  
+  #Distancia minima
+  dist_min <- apply(dist_matrix, 1, min)  
+  data_original[,n_variable]<-dist_min 
+  return(data_original)
+}
+
+##2.2. Datos de geografía de Bogotá --------------------------------------------
+
+# Localidades
+localidades <- st_read('Stores/loca/LOCA.shp')
+localidades <- localidades %>% select(LocNombre)
+localidades <- st_transform(localidades, crs=4326)
+TF <- st_join(TF, localidades, join = st_within)
+
+# Sectores
+sector <- st_read('Stores/sector/SECTOR.shp')
+sector <- st_transform(sector, crs=4326)
+sector <-sector %>% select(SCANOMBRE)
+sector <- st_make_valid(sector)
+TF <- st_join(TF, sector, join = st_within)
+
+##2.3. Datos de OpenStreetMap --------------------------------------------------
+
+#Revisamos datos disponibles de OSM
+available_features()
+available_tags("shop")
+
+#Aplicamos 'obtener_osmdata' para obtener los parques y centros comerciales de Bogotá
+parques<- obtener_osmdata('leisure', 'park', 'poligono')
+malls <- obtener_osmdata('shop', 'mall', 'poligono')
+
+#Aplicamos 'distneastfeat' para hallar la distancia mínima
+TF <- distneastfeat(TF, parques, 'distnearestpark', 'poligono')
+TF <- distneastfeat(TF, malls, 'distnearestmall', 'poligono')
+
+##2.4. Datos Abiertos Bogotá -----------------------------------------
+
+#Importamos los datos
+indicador_loc <- st_read("Datos/IndicadorLocalidad/IndicadorLoc.shp")
+indicador_upz <- st_read("Datos/esp_pub_efe_upz/EPE_UPZ.shp")
+luminarias_upz <- st_read("Datos/luminarias_upz/Luminarias_UPZ.shp")
+seguridad_nocturna <- st_read("Datos/puntosseguridadnocturna/PuntosSeguridadNocturna.shp")
+bibliotecas <- st_read("Datos/redbibliotecacademica/RedBibliotecAcademica.shp")
+museo <- st_read("Datos/museos/Museo.shp")
+colegios <- st_read("Datos/Colegios/Colegios03_2024.shp")
+recaudo_predial <- st_read("Datos/rpredial/RPREDIAL.shp")
+
+#Homogenizar datos geográficos
+datasets <- c("colegios", "indicador_loc", "indicador_upz", "luminarias_upz",
+              "seguridad_nocturna", "bibliotecas", "museo","recaudo_predial")
+
+for (data_name in datasets) {
+  # Obtener la base de datos por su nombre
+  data <- get(data_name)
+  
+  # Aplicar las transformaciones
+  data <- data %>%
+    st_transform(crs = 4326) %>%
+    st_make_valid()
+  
+  # Reasignar el objeto transformado al nombre original
+  assign(data_name, data)
+}
+
+#Unimos los datos de Datos Abiertos a los aptos
+
+  #Indicador de espacio público por localidad 
+  indicador_loc <- indicador_loc %>% select(EPE_2017, EPT_2017,
+                                            EPV_2017, geometry)
+  TF <- st_join(TF, indicador_loc, join = st_within)
+  
+  #Indicador de espacio público por UPZ
+  indicador_upz <- indicador_upz %>% select(EPE, geometry, 
+                                            CODIGO_UPZ, NOMBRE)  %>%
+    rename(EPE_UPZ = EPE, NOMBRE_UPZ = NOMBRE)
+  TF <- st_join(TF, indicador_upz, join = st_within)
+  
+  # Luminarias por upz
+  luminarias_upz <- luminarias_upz %>% 
+    select(geometry, TOTAL) %>%
+    rename(luminarias = TOTAL) 
+  TF <- st_join(TF, luminarias_upz, join = st_within)
+  
+  #Bibliotecas
+  TF <- distneastfeat(TF, bibliotecas, 'distnearestlibrary', 'puntos')
+  
+  #Colegios 
+  TF <- distneastfeat(TF, colegios, 'distnearestschool', 'puntos')
+  
+  #Museos
+  TF <- distneastfeat(TF, museo, 'distnearestmuseum', 'puntos')
+  
+  #Recaudo predial
+  recaudo_predial <- recaudo_predial %>% 
+    select(geometry, Sum_VALOR_) %>%
+    rename(recaudo_predial = Sum_VALOR_)
+  
+  TF <- st_join(TF, recaudo_predial, join = st_within)
+  
+  #Seguridad nocturna
+  "Nota: este código toma varias horas en correr debido a la cantidad de puntos 
+  en la basede seguridad, si prefieren pueden continuar en el siguiente punto,
+  donde se importan los datos que ya están unidos"
+  
+  seguridad_nocturna <- seguridad_nocturna %>% 
+    select(geometry, INDICE_SEG) %>%
+    rename(ind_seguridad_noct = INDICE_SEG) %>%
+    mutate(id = row_number())
+  
+  TF <- TF %>%
+    mutate(
+      indice_seguridad = NA,
+      id_seg = NA
+    )
+  
+  for (i in 1:20701) { #Iterar sobre aptos
+    apto <- TF[i,]  # Extraer el apartamento actual
+    
+    # Calcular la distancia del apartamento actual a todos los puntos
+    distancias_actuales <- st_distance(apto, seguridad_nocturna)
+    
+    # Identificar el punto con la mímima distancia
+    nearest_idx <- which.min(distancias_actuales)
+    
+    # Guardar el índice de seguridad en el punto más cercano
+    TF$indice_seguridad[i] <- seguridad_nocturna$ind_seguridad_noct[nearest_idx]
+  }
+  
+  ##2.5. Exportamos los datos --------------------------------------------------
+  export(TF, 'Stores/TF_completo.rds')
+
+#3. Limpieza de datos para modelos ---------------------------------------------
+
+rm(list = ls())
+TF <- import('Stores/TF_completo.rds')
+
+
+#Valor del garaje
+"Algunos apartamentos tienen el precio del garaje incluido en el valor del apto, 
+por lo tanto, a los que lo tienen por aparte se lo sumamos para homogenizar los
+precios."
+TF$valor_garaje <- ifelse(grepl("^[0-9]+$",TF$valor_garaje), as.numeric(TF$valor_garaje), 0)
+TF$poct24 <- TF$poct24 + TF$valor_garaje 
+
+# Asignar "sí" a todos los valores excepto cuando es "no"
+TF$estudioestar <- ifelse(TF$estudioestar == "No", "no", "si")
+
+#Número de garajes
+"En algunos apartamentos se rifan los garajes por lo que hay menos de 1 garaje
+por apto. Cuando esto pasa la variable dice por ejemplo '1 a 4', lo que indica
+que hay un garaje por cada 4 apartamentos. Queremos que la variable sea númerica.
+Por lo tanto en estos casos lo convertimos en un decimal. Por ejemplo, 
+si hay '1 a 4' garajes queda 0.25"
+
+TF$gar <- sapply(TF$gar, function(x) {
+  if (grepl(" a ", x)) {
+    # Si es un rango, separar los valores y hacer la división
+    nums <- as.numeric(strsplit(x, " a ")[[1]])
+    return(nums[1] / nums[2])
+  } else {
+    # Si no es un rango, convertir el valor directamente a numérico
+    return(as.numeric(x))
+  }
+})
+
+#Eliminar columnas no deseadas
+TF <- TF %>% select(-codproyecto, -codinmueble, -valor_garaje, -municipio, -CODIGO_UPZ)
+
+#Definimos el tipo de dato contenido en cada variable
+
+TF <- TF %>% mutate(
+  tipo = as.factor(tipo),
+  gar = as.numeric(gar),
+  estudioestar = as.factor(estudioestar),
+  deposito = as.factor(deposito),
+  garaje = as.factor(garaje),
+  estrato = as.factor(estrato),
+  tiene_sala_ventas = as.factor(tiene_sala_ventas),
+  proyecto_y = as.factor(proyecto_y),
+  barrio = as.factor(barrio),
+  LocNombre = as.factor(LocNombre),
+  SCANOMBRE = as.factor(SCANOMBRE),
+  NOMBRE_UPZ = as.factor(NOMBRE_UPZ),
+  area = as.numeric(area),
+  alc = as.numeric(alc),
+  banos_completos = as.numeric(banos_completos),
+  area_patio = as.numeric(`area_patio`),
+  poct24 = as.numeric(poct24),
+  EPE_2017 = as.numeric(EPE_2017),
+  EPT_2017 = as.numeric(EPT_2017),
+  EPV_2017 = as.numeric(EPV_2017),
+  EPE_UPZ = as.numeric(EPE_UPZ),
+  indice_seguridad = as.factor(indice_seguridad)
+)
+
+#Area patio
+TF <- TF %>% mutate(area_patio = if_else(area_patio  < 0, 0, area_patio))
+
+
+
+# 3.1 Renombrar las variables  --------------------- 
+
+TF   <- TF  %>%
+  rename(
+    proporción_parquederos = gar,
+    baños = banos_completos,
+    Tipo_parqueadero = garaje,
+    EPV = EPV_2017,
+    EPE_UPZ = EPE_UPZ,
+    distancia_cc = distnearestmall,
+    distancia_museo = distnearestmuseum,
+    distancia_colegio = distnearestschool,
+    distancia_biblioteca = distnearestlibrary,
+    proyecto = proyecto_y,
+    distancia_parque = distnearestpark,
+    sala_de_ventas = tiene_sala_ventas,
+    sector = SCANOMBRE,
+    localidad = LocNombre,
+    EPT = EPT_2017,
+    EPE = EPE_2017,
+    UPZ = NOMBRE_UPZ,
+    numero_cuartos = alc,
+    estudio = estudioestar,
+    area_patio = area_patio,
+    tipo_inmueble = tipo
+  )
+
+TF <- TF %>% select(-id_seg)
+
+TF <- na.omit(TF)
+
+#Exportamos los datos
+export(TF, 'Stores/TF_modelos.rds')
+
+#4. Gráficos -------------------------------------------------------------------
+
+rm(list = ls())
+TF <- import('Stores/TF_modelos.rds')
+TF <- st_as_sf(TF)
+
+
+#4.1  Manipulación de datos para graficar mapas -----
+
+# Importamos limites de bogota (localidades), cambiamos sistema de referencia. -----
+bogota_lim <- st_read('Stores/loca/LOCA.shp')
+bogota_lim<- bogota_lim  %>% st_transform(crs=4326)
+
+# Calculo de precip por mt2
+TF$`precio por mt2` <- TF$poct24 / TF$area
+TF$`precio por mt2` <- TF$`precio por mt2` /1000000
+
+
+# 4.2 Obtneción de las vias de bogota para fines esteticos del mapa ------
+
+#Obtención de vias principales
+streets_primary<- opq(bbox=getbb('Bogotá Colombia')) %>% 
+  add_osm_feature(key='highway', value='primary') %>%
+  osmdata_sf()
+streets_primary<-streets_primary$osm_lines
+
+#Obtención de vias tipo trunk (autonorte, caracas)
+streets_trunk<- opq(bbox=getbb('Bogotá Colombia')) %>% 
+  add_osm_feature(key='highway', value='trunk') %>%
+  osmdata_sf()
+streets_trunk<-streets_trunk$osm_lines
+
+#Obtencion de vias secundarias
+streets_secondary<- opq(bbox=getbb('Bogotá Colombia')) %>% 
+  add_osm_feature(key='highway', value='secondary') %>%
+  osmdata_sf()
+streets_secondary<-streets_secondary$osm_lines
+
+# 4.3 Mapa distribución geografica por mt2-----
+
+# Dividimos el precio en quintiles
+TF <- TF %>%
+  mutate(precio_quintiles = cut(`precio por mt2`, 
+                                breaks = quantile(`precio por mt2`, probs = seq(0, 1, 0.2), na.rm = TRUE), 
+                                include.lowest = TRUE))
+
+# Obtenemos intervalos de los quintiles y los convertimos a string (manualmente)
+intervalos <- levels(TF$precio_quintiles)
+intervalos <- c('0.33-3.12', '3.12-4.3', '4.3-5.9', '5.9-8.1', '8.1-28')
+
+# Codigo del mapa
+map1 <- ggplot() +
+  geom_sf(data = bogota_lim, fill = NA, size = 1, color = 'orange') +
+  geom_sf(data = streets_primary, fill = NA, size = 0.6, col = 'gray34') +
+  geom_sf(data = streets_trunk, fill = NA, size = 0.6, col = 'gray34') +
+  geom_sf(data = streets_secondary, fill = NA, size = 0.6, col = 'gray34') +
+  geom_sf(data = TF, aes(color = precio_quintiles), shape = 15, size = 1.2) +
+  scale_color_manual(values = c("#d0ebff", "#91caff", "#62a9ff", "#0073e6", "#004ba0"),
+                     labels = intervalos) + # Usar los intervalos en la leyenda
+  coord_sf(xlim = c(-74.2, -74.03), ylim = c(4.57, 4.8)) +
+  annotation_north_arrow(data = TF, location='topleft', style = north_arrow_fancy_orienteering())+
+  theme_bw() +
+  labs(color = "Precio por m² \n (Millones COP)")  # Etiqueta de la leyenda
+
+
+#Observamos y guardamos el mapa
+map1
+ggsave("Views/mapa1.png", width = 6, height = 4, plot = map1)
+
+
+# 4.4  Mapa Distribución geografica del EPV ------
+
+#Importmos datos del EPV y cambiamos sistema de referencia
+esverde <- st_read('Datos/IndicadorLocalidad/IndicadorLoc.shp')
+esverde <- esverde %>% st_transform(esverde, crs=4326)   %>%
+  rename(EPV = EPV_2017)
+
+# Dividimos en quintiles
+esverde <- esverde %>%
+  mutate(EPV_quintiles = cut(EPV, 
+                             breaks = quantile(EPV, probs = seq(0, 1, 0.2), na.rm = TRUE), 
+                             include.lowest = TRUE))
+
+# Definimos los quintiles y los convertimos a string (manualmente)
+intervalos2 <- levels(esverde$EPV_quintiles)
+intervalos2 <- c('2.11-5.62', '5.62-8.94', '8.94-10.7', '10.7-14.2', '14.2-29.2')
+
+# Graficamos mapa del EPV
+map2 <- ggplot() +
+  geom_sf(data = esverde, aes(fill = EPV_quintiles), size = 0.3) +
+  scale_fill_manual(values = c("#d0f5d9", "#91f7d8", "#62f5a9", "#00b84c", "#007f4d"),
+                    labels = intervalos2) +
+  coord_sf(xlim = c(-74.22, -74.01), ylim = c(4.47, 4.82)) +
+  theme(plot.title = element_text(hjust = 0)) +
+  theme_bw()  +
+  labs(fill = "EPV") +
+  annotation_north_arrow(data = TF, location='topleft', style = north_arrow_fancy_orienteering())
+
+#observamos y guardamos el mapa
+map2
+ggsave("Views/mapa2.png", width = 6, height = 4, plot = map2)
+
+
+# 4.5 Distribución por estrato ------
+
+# Tabla de freciencias por estrato
+estrato <- data.frame(table(TF$estrato))
+colnames(estrato) <- c("Estrato", "Frecuencia")
+
+
+# Gráfico de barras (por estrato)
+freq_estrato <- ggplot(data = estrato, aes(x = Estrato, y = Frecuencia)) + # Inicialización de ggplot
+  geom_bar(stat = "identity", fill = "royalblue", color = "black", size = 0.5, width=0.7) + 
+  labs(
+    x = "Estrato",
+    y = "Frecuencia") +
+  theme_bw()
+
+#observamos y guardamos el grafico
+freq_estrato
+ggsave("Views/barras_estrato.png", width = 6, height = 4, plot = freq_estrato)
+
+
+# 4.5 Tabla por localidad (Frecuencia relativa)  ------
+
+# Crear data frame de frecuencias
+localidad <- data.frame(table(TF$localidad))
+colnames(localidad) <- c("localidad", "Frecuencia")
+
+
+# Ordenar la localidad por la frecuencia de manera ascendente
+localidad$localidad <- reorder(localidad$localidad, localidad$Frecuencia)
+
+# Gráfico de barras con orden ascendente
+freq_localidad <- ggplot(data = localidad, aes(x = localidad, y = Frecuencia)) +
+  geom_bar(stat = "identity", fill = "seagreen", color = "black", size = 0.5, width = 0.7) + 
+  labs(
+    x = "Localidad",
+    y = "Frecuencia") +
+  coord_flip() +
+  theme_bw()
+
+# Observamos y exportamos el grafico
+freq_localidad
+ggsave("Views/freq_localidad.png", width = 6, height = 4, plot = freq_localidad)
+
+
+
+# 4.6 Promedio del precio por localidad -----------
+
+# Calcular el precio promedio por localidad
+precio_promedio <- TF %>%
+  group_by(localidad) %>%
+  summarise(PrecioPromedio = mean(poct24))
+
+# Gráfico de barras del precio promedio por localidad
+mean_price_loc <- ggplot(data = precio_promedio, aes(x = reorder(localidad, PrecioPromedio), y = PrecioPromedio)) +
+  geom_bar(stat = "identity", fill = "azure2", color = "black", size = 0.5, width = 0.7) + 
+  labs(
+    x = "Localidad",
+    y = "Precio Promedio") +
+  coord_flip() +
+  theme_bw()
+
+# Observamos y exportamos el grafico
+mean_price_loc
+ggsave("Views/mean_loc_price.png", width = 6, height = 4, plot = mean_price_loc)
+
+
+TF_descript <- TF %>% select(numero_cuartos,
+                                      baños,
+                                      area,
+                                      proporción_parquederos,
+                                      poct24,
+                                      distancia_parque,
+                                      EPE,
+                                      EPT,
+                                      EPV,
+                                      -geometry)
+
+TF_descript <- as.data.frame(TF_descript)  
+TF_descript <- TF_descript %>% select(-geometry)
+
+
+
+stargazer(TF_descript,type = 'xlsx', out='Views/descript.xsls')
+
+
+#5. Modelos --------
+
+rm(list = ls())
+TF <- import('Stores/TF_modelos.rds')
+
+# Eliminamos variable geometry
+TF <- TF %>% select(-geometry)
+
+
+# 5.1 Modelo de regresión------
+
+# Creamos variable en logaritmo
+TF$ln_precio <- log(TF$poct24)
+
+### Estimamos modelos
+reg1<- lm(ln_precio ~ distancia_parque+area + proporción_parquederos + baños + Tipo_parqueadero + estrato + deposito + distancia_cc + barrio + UPZ + sector + localidad + indice_seguridad,data = TF )
+reg2<- lm(ln_precio ~ EPV+area + proporción_parquederos + baños + Tipo_parqueadero + estrato + deposito + distancia_cc + barrio + UPZ + sector + localidad + indice_seguridad,data = TF )
+reg3<- lm(ln_precio ~ EPE_UPZ+area + proporción_parquederos + baños + Tipo_parqueadero + estrato + deposito + distancia_cc + barrio + UPZ + sector + localidad + indice_seguridad,data = TF)
+
+#Junatmos todos en una sola tabla
+stargazer(reg1, reg2, reg3, type = 'html', keep = c('distancia_parque', 'EPV' , 'EPE_UPZ'), out = 'Views/tabla_reg.html')
+
+TF <- TF %>% select(-ln_precio)
+
+
+# 5.2 RandomForest ------
+
+#Dividimos  80 % train y 20 % test
+set.seed(123)
+
+# Calcular el tamaño de la muestra para el conjunto de entrenamiento (80%)
+train_size <- floor(0.8 * nrow(TF))
+
+# Crear un índice aleatorio para dividir los datos
+train_indices <- sample(seq_len(nrow(TF)), size = train_size)
+
+# Dividir los datos en conjuntos de entrenamiento y prueba
+train_data <- TF[train_indices, ]
+
+
+
+## configuracion CV (validación cruzada)
+ctrl<- trainControl(method = "cv",
+                    number = 5,
+                    savePredictions = T)
+
+#Grilla
+mtry_grid<-expand.grid(mtry =c(10,15,20,28), # 8 inclueye bagging
+                       min.node.size= c(1, 5, 10, 20, 35, 50), #controla la complejidad del arbol
+                       splitrule= 'variance') #splitrule fija en variance. 
+mtry_grid
+
+
+###optimización de modelo
+cv_RForest <- train(poct24~., 
+                    data = train_data, 
+                    method = "ranger",
+                    trControl = ctrl,
+                    tuneGrid = mtry_grid,
+                    ntree=500)
+
+cv_RForest
+
+### Ejecutamos el modelo optimos
+RF2<- ranger(poct24~., 
+             data = TF,
+             num.trees= 500, ## Numero de bootstrap samples y arboles a estimar. Default 500  
+             mtry= 28,   # N. var aleatoriamente seleccionadas en cada partición. Baggin usa todas las vars.
+             min.node.size  = 20, ## Numero minimo de observaciones en un nodo para intentar 
+             importance="impurity") 
+RF2
+
+###  Creamos variables de importancia de variables 
+imp2<-importance(RF2)
+imp2<- data.frame(variables= names(imp2),
+                  importance= imp2)
+
+
+#Arreglar texto de dataframe prensentable en la grafica
+imp2$variables<- gsub("_", " ",  imp2$variables)
+imp2$variables <- tools::toTitleCase( imp2$variables)
+
+
+### Grafica de resultados
+resul2 <- ggplot(imp2, aes(x = reorder(variables, importance) , y =importance )) +
+  geom_bar(stat = "identity", fill = "firebrick") +
+  labs(x = "Variable", y="Importancia") +
+  theme_minimal() +
+  coord_flip() +
+  theme_bw()
+
+#GObservamos grafica y guardamos
+resul2
+ggsave("Views/resul2.png", width = 6, height = 4, plot = resul2)
+
+
