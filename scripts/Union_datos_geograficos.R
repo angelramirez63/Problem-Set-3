@@ -5,8 +5,6 @@ rm(list = ls())
 
 ## Librerias--------------------------------------------------------------------
 
-rm(list = ls())
-
 if(!require(pacman)) install.packages("pacman") ; require(pacman)
 
 remotes::install_cran("httr2") 
@@ -23,17 +21,17 @@ rm(wd_stores)
 
 #Creación de funciones ---------------------------------------------------------
 
-#Función para obtener los datos que requerimos de OpenStreetMap
+#Función para obtener los datos de OpenStreetMap
 obtener_osmdata <- function(llave, valor, tipo_dato){
   
-  ### Utilizamoas osm para bogota
+  #OSM para bogota
   data <- opq(bbox = getbb("Bogotá Colombia")) %>%
     add_osm_feature(key = llave , value = valor)
   
-  #Cambios el tipo de objeto
+  #Tipo de objeto
   data<- osmdata_sf(data)
   
-  #Dejamos poligonos y name y id
+  #Guardamos geografía y name y id
   
   if (tipo_dato=='linea'){
     data <- data$osm_lines %>% 
@@ -54,7 +52,9 @@ obtener_osmdata <- function(llave, valor, tipo_dato){
   data<-st_as_sf(data, crs=4326)
   
   #Cambiamos crs
-  data<-st_transform(data, crs=4326)
+  data<- data %>% st_transform(crs=4326) %>%
+    st_make_valid()
+    
   return(data)
   
 }
@@ -152,7 +152,7 @@ transmi <- st_as_sf(transmi, coords = c("LONGITUD", "LATITUD"),
 datasets <- c("colegios", "indicador_loc", "indicador_upz", "luminarias_upz",
               "seguridad_nocturna", "bibliotecas", "museo","recaudo_predial", 
               "manzanas_estr", "sitp", "delitos", "restbar", "cicloruta", 
-              "manzanas_aval")
+              "manzanas_aval", "manzanas_area_com", "manzanas_area_res")
 
 for (data_name in datasets) {
   # Obtener la base de datos por su nombre
@@ -264,6 +264,41 @@ datos <- datos %>% rename('localidad'='LocNombre')  %>%
   mutate(localidad=tolower(localidad)) # Cambiamos nombre de localidad para pegar variables
 datos <- left_join(x=datos, y=delitos, by='localidad')
 
+#Restaurantes
+
+manzanas <- manzanas_estr %>% select(CODIGO_MAN, geometry)
+sf_use_s2(FALSE) ### Linea necesaria pára correr el codigo
+restbar <- st_join(restbar, manzanas, join = st_nearest_feature)
+
+num_restbar <- restbar %>%
+  group_by(CODIGO_MAN) %>%
+  summarise(n_restaurantes = n_distinct(OBJECTID_1))
+
+datos <- st_join(datos, num_restbar, join = st_nearest_feature) #agego número de restaurantes por manzana
+
+datos <- datos %>% rename(num_restaurantes_manz = n_restaurantes)
+
+datos <- distneastfeat(datos, restbar, 'distrestaurantebar', 'puntos')
+
+# Cicloruta
+cicloruta <- st_transform(cicloruta, st_crs(datos))
+cicloruta <- st_cast(cicloruta, "POINT")
+
+#Voy a separar la base de nuevo porque es muy exigente correr el código para la base de datos completa
+test <- datos %>% filter(is.na(price))
+train <- datos %>% filter(!is.na(price))
+
+#Creación de variables
+trainciclodist<-dist_minpoints(train,cicloruta)
+testciclodist<-dist_minpoints(test,cicloruta)
+
+#Asignamos las variables al dataframe
+train$distciclorutat<-trainciclodist
+test$distcicloruta<-testciclodist
+
+#Volvemos a unir y exportamos los datos
+datos <- rbind(test, train)
+export(datos, 'datos_unidos.rds')
 
 
 ## Datos OpenStreetMap ---------------------------------------------------------
@@ -278,7 +313,7 @@ malls <- obtener_osmdata('shop', 'mall', 'poligono')
 malls <- st_make_valid(malls)
 
 #Aplicamos 'distneastfeat' para hallar la distancia mínima
-datos <- distneastfeatvar(datos, parques, 'distnearestpark', 'poligono')
-datos <- distneastfeatvar(datos, malls, 'distnearestmall', 'poligono')
+datos <- distneastfeat(datos, parques, 'distnearestpark', 'poligono')
+datos <- distneastfeat(datos, malls, 'distnearestmall', 'poligono')
 
 export(datos, 'datos_unidos.rds')
