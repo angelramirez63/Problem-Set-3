@@ -16,7 +16,8 @@ p_load(tidyverse, #Manejo de datos
        here, #Definir directorio cuando hay un .Rproj
        osmdata, #Obtener datos de OSM
        sf, #Manejo de datos espaciales
-       stargazer #Presentación resultados
+       stargazer, #Presentación resultados
+       geojsonR #Leer archivos geojson 
 )
 
 ##Definir directorio----------####
@@ -39,6 +40,7 @@ localidades <- localidades %>%
 
 #Helper fuctions ---------------------------------------------------------------
 
+#Obtener datos de OSM
 obtener_osmdata_v2 <- function(llave, valor){
   
   ### Utilizamoas osm para bogota
@@ -62,12 +64,31 @@ obtener_osmdata_v2 <- function(llave, valor){
 }
 
 
+#Distancia mínima a la amenidad 
+distneastfeat<-function(data_original, data_feat, n_variable, tipo_dato){
+  
+  ##Calculamos centroides si poligono
+  if (tipo_dato=='poligono'){
+    data_feat <- st_centroid(data_feat, byid = T)
+  }
+  else{
+    NA
+  }
+  ##Calculamos distancias
+  dist_matrix <- st_distance(x = data_original, y = data_feat)
+  
+  #Distancia minima
+  dist_min <- apply(dist_matrix, 1, min)  
+  data_original[,n_variable]<-dist_min 
+  return(data_original)
+}
+
 
 #Identificar donde esta el CBD de Bogotá ---------------------------------------
 
 
 ##Información utilizada para definir el CBD ---------####
-#Usamos dos encuestas para ver si el CBD ha cambiado en el tiempo, teniendo en cuenta que lo datos de los aptos están en 2020
+#Usamos dos encuestas para ver si el CBD ha cambiado en el tiempo, teniendo en cuenta que lo datos de los aptos están entre 2020 y 2021
 #(i) Encuesta de Movilidad Bogotá 2019
 #https://observatorio.movilidadbogota.gov.co/sites/observatorio.movilidadbogota.gov.co/files/2024-06-02/encuesta/Cartilla%20resultados%20Encuesta%20de%20Movilidad%202019.pdf
 #(ii) Encuesta de Movilidad Bogotá 2023
@@ -122,14 +143,107 @@ datos$cbd_distancia <- st_distance( x = datos, y = cbd_pt)
 
 
 
-#Distancia al CAI más cercano -------####
+#Distancia al CAI más cercano --------------------------------------------------
+
+##Datos puntos cai------------####
   
+#Fuente de los datos 
+##https://datosabiertos.bogota.gov.co/dataset/centro-de-atencion-accion-para-bogota-d-c
+
+#Cargar datos
+puntos_cai <- st_read("comandoatencioninmediata")
+puntos_cai <- puntos_cai %>% 
+              select(CAINOMBRE, CAILONGITU, CAILATITUD, geometry)
+              
+puntos_cai <- st_transform(puntos_cai, crs = 4326)
+
+##Crear variables distancia al CAI mas cercano------------####
+datos <- distneastfeat(datos, puntos_cai, 'distnearestCAI', 'puntos')
+
+
+
+#Amenidades de OSM -------------------------------------------------------------
+
+#Wiki de features: https://wiki.openstreetmap.org/wiki/Map_features#Office
+
+##Hospitales-----------####
+
+#Obtener la información de OSM
+hospitales <- obtener_osmdata_v2('amenity', 'hospital')
+
+#Crear variable distancia al hospital mas cercano 
+datos <- distneastfeat(datos, hospitales, "distnearestHospital", "poligono")
+
+
+##Gimnasios---------####
+
+#Obtener la información de OSM
+gyms <- obtener_osmdata_v2('leisure', 'fitness_centre')
+
+#Crear variable distancia al gimnasio mas cercano 
+datos <- distneastfeat(datos, gyms, "distnearestGym", "poligono")
+
+
+##Super Mercados----------####
+
+#Obtener la información de OSM
+mini_market <- obtener_osmdata_v2('shop', 'convenience')
+
+
+#Crear variable distancia a la tienda de barrio mas cercana
+datos <- distneastfeat(datos, mini_market, "distnearestConvenienceStore", "poligono")
+
+
+##Farmacias---------####
+farmacias <- obtener_osmdata_v2('amenity', 'pharmacy')
+datos <- distneastfeat(datos, farmacias, "distnearestPharmacy", "poligono")
 
 
 
 
 
+#Arbolado en Bogotá ------------------------------------------------------------
 
+##Datos arbolado en Bogotá-----------#####
+
+#Fuente de los datos
+#https://datosabiertos.bogota.gov.co/dataset/censo-arbolado-urbano
+
+#Descripcíon de la base
+#Conjunto de plantas de las especies correspondientes a los biotipos árbol, arbusto, 
+#palma o helecho arborescente, ubicados en suelo urbano de la ciudad de Bogotá D.C. 
+#(es una medida de la ubicación de la naturaleza en la ciudad y la naturaleza es una 
+#amenidad)
+
+#Cargar datos
+arbolado <- st_read("arboaldo_urbano")
+arbolado <- st_transform(arbolado, crs = 4326)
+
+
+##Agrupar base a nivel arboles por UPZ------------####
+
+arbolado <- arbolado %>% st_drop_geometry() #Vamos a usar el código de la upz para unir las bases 
+
+arbolado <- arbolado %>%  
+            filter(!is.na(Codigo_UPZ)) #Remover árboles que no están ubicados en ninguna upz. Son 18
+
+arbolado <- arbolado %>% 
+            mutate(cod_upz_int = substring(Codigo_UPZ, 4, length(Codigo_UPZ))) #Conservar solo el número. El código esta en formato UPZ_número
+
+arbolado_x_upz <- arbolado %>% 
+                  group_by(cod_upz_int) %>% 
+                  summarise(n_arboles_upz = n()) #Cada observación es un árbol distinto
+
+arbolado_x_upz <- arbolado_x_upz %>% 
+                  rename(CODIGO_UPZ = cod_upz_int)
+
+
+##Agregar variable árboles por upz-------------####
+datos <- left_join(datos, arbolado_x_upz, by = "CODIGO_UPZ")  #Quedan 55 missings values correspondientes a los apartamentos para los que no tenemos upz
+
+
+#Exportar datos ----------------------------------------------------------------
+export(datos, 'datos_unidos.rds')
 
 
 
