@@ -7,11 +7,7 @@ rm(list = ls())
 
 if(!require(pacman)) install.packages("pacman") ; require(pacman)
 
-remotes::install_cran("httr2") 
-install.packages("httr2", type = "binary")
-
-p_load(tidyverse, openxlsx, stringi, rio, stringi, leaflet, here,
-       osmdata, sf, httr2, stargazer, caret, MLmetrics, ggspatial, ranger)
+p_load(tidyverse, stringi, rio, leaflet, here, osmdata, sf)
 
 ## Directorio ------------------------------------------------------------------
 wd <- here()
@@ -115,7 +111,7 @@ localidades <- st_transform(localidades, crs=4326)
 datos <- st_join(datos, localidades, join = st_within)
 
 # Sectores
-sector <- st_read('sector/SECTOR.shp')
+sector <- st_read('stores/sector/SECTOR.shp')
 sector <- st_transform(sector, crs=4326)
 sector <-sector %>% select(SCANOMBRE)
 sector <- st_make_valid(sector)
@@ -272,11 +268,9 @@ restbar <- st_join(restbar, manzanas, join = st_nearest_feature)
 
 num_restbar <- restbar %>%
   group_by(CODIGO_MAN) %>%
-  summarise(n_restaurantes = n_distinct(OBJECTID_1))
+  summarise(num_restaurantes_manz = n_distinct(OBJECTID_1))
 
 datos <- st_join(datos, num_restbar, join = st_nearest_feature) #agego número de restaurantes por manzana
-
-datos <- datos %>% rename(num_restaurantes_manz = n_restaurantes)
 
 datos <- distneastfeat(datos, restbar, 'distrestaurantebar', 'puntos')
 
@@ -284,21 +278,30 @@ datos <- distneastfeat(datos, restbar, 'distrestaurantebar', 'puntos')
 cicloruta <- st_transform(cicloruta, st_crs(datos))
 cicloruta <- st_cast(cicloruta, "POINT")
 
-#Voy a separar la base de nuevo porque es muy exigente correr el código para la base de datos completa
+  #Voy a separar la base de nuevo porque es muy exigente correr el código para la base de datos completa
 test <- datos %>% filter(is.na(price))
 train <- datos %>% filter(!is.na(price))
 
-#Creación de variables
+  #Creación de variables
 trainciclodist<-distminpoints(train,cicloruta)
 testciclodist<-distminpoints(test,cicloruta)
 
-#Asignamos las variables al dataframe
+  #Asignamos las variables al dataframe
 train$distcicloruta<-trainciclodist
 test$distcicloruta<-testciclodist
 
-#Volvemos a unir y exportamos los datos
+  #Volvemos a unir
 datos <- rbind(test, train)
-export(datos, 'datos_unidos.rds')
+
+#Area residencial manzana
+  #Mantenemos el año más cercano a la base de aptos
+manzanas_area_res <- manzanas_area_res %>% 
+  filter(ANO=="2021-01-01") %>%
+  select(AREA_RESID, geometry)
+
+datos <- st_join(datos, manzanas_area_res, join = st_nearest_feature)
+
+datos <- datos %>% rename(area_resid_manz = AREA_RESID)
 
 
 ## Datos OpenStreetMap ---------------------------------------------------------
@@ -310,7 +313,6 @@ available_tags("shop")
 #Aplicamos 'obtener_osmdata' para obtener los parques y centros comerciales de Bogotá
 parques<- obtener_osmdata('leisure', 'park', 'poligono')
 malls <- obtener_osmdata('shop', 'mall', 'poligono')
-malls <- st_make_valid(malls)
 
 #Aplicamos 'distneastfeat' para hallar la distancia mínima
 datos <- distneastfeat(datos, parques, 'distnearestpark', 'poligono')
