@@ -289,11 +289,11 @@ test <- datos %>% filter(is.na(price))
 train <- datos %>% filter(!is.na(price))
 
 #Creación de variables
-trainciclodist<-dist_minpoints(train,cicloruta)
-testciclodist<-dist_minpoints(test,cicloruta)
+trainciclodist<-distminpoints(train,cicloruta)
+testciclodist<-distminpoints(test,cicloruta)
 
 #Asignamos las variables al dataframe
-train$distciclorutat<-trainciclodist
+train$distcicloruta<-trainciclodist
 test$distcicloruta<-testciclodist
 
 #Volvemos a unir y exportamos los datos
