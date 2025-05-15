@@ -326,18 +326,25 @@ db <- db %>% # Para los valores restantes
   mutate(area = if_else(is.na(area), mean(area, na.rm = TRUE), area)) %>%
   ungroup()
 
-
-
 # Imputaremos baños agrupando por algunas variables
+db <- db %>% # Para agrupar por area en grupos de 10
+  mutate(grupo_area = floor(area / 10))
+
 db <- db %>%
   group_by(SCANOMBRE, bedrooms, ESTRATO, property_type, area) %>%
   mutate(n_banos = if_else(is.na(n_banos), mean(n_banos, na.rm = TRUE), n_banos)) %>%
   ungroup()
 
 db <- db %>% # Para los valores restantes
-  group_by(CODIGO_UPZ, bedrooms, ESTRATO, property_type, area) %>%
+  group_by(CODIGO_UPZ, bedrooms, ESTRATO, property_type, grupo_area) %>%
   mutate(n_banos = if_else(is.na(n_banos), mean(n_banos, na.rm = TRUE), n_banos)) %>%
   ungroup()
+
+db <- db %>% # Para los valores restantes
+  group_by(CODIGO_UPZ, bedrooms, property_type, grupo_area) %>%
+  mutate(n_banos = if_else(is.na(n_banos), mean(n_banos, na.rm = TRUE), n_banos)) %>%
+  ungroup()
+
 
 # Imputaremos precio agrupando por algunas variables
 db <- db %>%
@@ -348,7 +355,6 @@ db <- db %>%
 # Eliminamos variables inutiles
 db <- db %>% 
   select(-habitaciones, -rooms)
-
 
 #_______________________________________________________________________________
 
