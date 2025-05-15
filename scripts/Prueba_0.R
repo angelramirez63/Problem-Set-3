@@ -345,13 +345,6 @@ db <- db %>% # Para los valores restantes
   mutate(n_banos = if_else(is.na(n_banos), mean(n_banos, na.rm = TRUE), n_banos)) %>%
   ungroup()
 
-
-# Imputaremos precio agrupando por algunas variables
-db <- db %>%
-  group_by(SCANOMBRE, bedrooms, ESTRATO, property_type, area) %>%
-  mutate(price = if_else(is.na(price), mean(n_banos, na.rm = TRUE), price)) %>%
-  ungroup()
-
 # Eliminamos variables inutiles
 db <- db %>% 
   select(-habitaciones, -rooms)
