@@ -36,6 +36,7 @@ localidades <- st_read('loca/LOCA.shp') %>%
 localidades <- localidades %>% 
                filter(LocNombre != "SUMAPAZ")
 
+datos_lenguaje_natural <- readRDS("base_limpia.rds")
 
 
 #Helper fuctions ---------------------------------------------------------------
@@ -240,10 +241,33 @@ arbolado_x_upz <- arbolado_x_upz %>%
 
 ##Agregar variable árboles por upz-------------####
 datos <- left_join(datos, arbolado_x_upz, by = "CODIGO_UPZ")  #Quedan 55 missings values correspondientes a los apartamentos para los que no tenemos upz
-
+d
 
 #Exportar datos ----------------------------------------------------------------
-export(datos, 'datos_unidos.rds')
+
+
+##Consolidar base final ---------#####
+
+datos <- datos %>% 
+               select(-surface_total, -surface_covered, -rooms, -bathrooms)
+
+variables_db_espaciales <- colnames(datos)
+variables_db_lenguaje <- colnames(datos_lenguaje_natural)
+
+#variables_db_lenguaje sin los elementos que están en variables_db_espaciales
+variables_filtradas <- setdiff(variables_db_lenguaje, variables_db_espaciales)
+
+#Consevar solo el property id y las variables optenidas de la descripción 
+datos_lenguaje_natural <- datos_lenguaje_natural %>%
+                          select(property_id, all_of(variables_filtradas))
+
+
+#Uniar ambas bases 
+db_final <- left_join(datos, datos_lenguaje_natural,by = "property_id")
+#Deje todos los valores asi tengan missings values 
+
+##Exportar datos finales----------####
+export(datos, 'db_final.rds')
 
 
 
