@@ -24,13 +24,7 @@ setwd(wd)
 
 ## Datos -----------------------------------------------------------------------
 
-datos_espaciales <- readRDS("stores/db_final.rds")
-datos_texto <- readRDS("stores/base_limpia.rds")
-
-datos_espaciales_limpio <- datos_espaciales %>%
-  select(-any_of(setdiff(names(datos_texto), "property_id")))
-
-datos <- left_join(datos_texto, datos_espaciales_limpio, by="property_id")
+datos <- readRDS("stores/db_final.rds")
 
 datos <- datos %>%
   mutate(across(c(property_id, city, property_type, operation_type, 
@@ -40,8 +34,8 @@ datos <- datos %>%
 
 datos<- st_as_sf(datos)
 geom <- st_geometry(datos)
-datos_knn <- st_drop_geometry(datos) %>%
-  select(-bigramas, - trigramas, -geometry.y)
+datos_knn <- datos %>% st_drop_geometry() %>%
+  select(-bigramas, - trigramas)
 
 # Variables a excluir de la imputación
 excluir_manual <- c("price")
@@ -56,14 +50,20 @@ datos_imputados <- kNN(
   imp_var = FALSE   # no crear columnas extra con sufijo _imp
 )
 
+#Devolvemos la geometría
 st_geometry(datos_imputados) <- geom
 datos_imputados_sf <- st_as_sf(datos_imputados)
 
-datos_imputados_sf <- datos_imputados_sf %>% mutate(ln_price = log(price))
+#Agregamos ln del precio
+datos <- datos_imputados_sf %>% mutate(ln_price = log(price))
 export(datos_imputados_sf, 'datos_modelos.rds')
 
-test <- datos_imputados_sf %>% filter(is.na(price))
-train <- datos_imputados_sf %>% filter(!is.na(price))
+#Separamos en train y test
+test <- datos %>% filter(is.na(price))
+train <- datos %>% filter(!is.na(price))
+
+#Eliminamos objetos innecesarios
+rm(geom, datos_knn, datos_imputados, datos_imputados_sf)
 
 #Modelos -----------------------------------------------------------------------
 
@@ -77,13 +77,15 @@ autoplot(block_folds)
 
 ## Eliminamos geometry 
 train<- as.data.frame(train)
-train<- train %>% select(-geometry,-SCANOMBRE, -CODIGO_MAN, -CODIGO_UPZ)
+train<- train %>% select(-geometry,-SCANOMBRE, -CODIGO_MAN, -CODIGO_UPZ, 
+                         -description, -title)
 test<- as.data.frame(test)
 test<- test %>% select(-geometry, -SCANOMBRE, -CODIGO_MAN, -CODIGO_UPZ)
 
 ### configuramos tidymodels (receta)
 
 rec_1 <- recipe(ln_price ~ . , data = train) %>%
+  step_rm(property_id, city, operation_type) %>% # Eliminamos variables que no queremos como predictores
   step_dummy(all_nominal_predictors()) %>%  # crea dummies para las variables categóricas
   step_zv(all_predictors()) %>%   #  elimina predictores con varianza cero (constantes)
   step_normalize(all_predictors())  # normaliza los predictores. 
