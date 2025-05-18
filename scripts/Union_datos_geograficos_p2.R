@@ -241,7 +241,7 @@ arbolado_x_upz <- arbolado_x_upz %>%
 
 ##Agregar variable árboles por upz-------------####
 datos <- left_join(datos, arbolado_x_upz, by = "CODIGO_UPZ")  #Quedan 55 missings values correspondientes a los apartamentos para los que no tenemos upz
-d
+
 
 #Exportar datos ----------------------------------------------------------------
 
@@ -267,7 +267,7 @@ db_final <- left_join(datos, datos_lenguaje_natural,by = "property_id")
 #Deje todos los valores asi tengan missings values 
 
 ##Exportar datos finales----------####
-export(datos, 'db_final.rds')
+export(db_final, 'db_final.rds')
 
 
 
