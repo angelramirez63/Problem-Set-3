@@ -71,28 +71,33 @@ rm(geom, datos_knn, datos_imputados, datos_imputados_sf)
 
 ###Alistamos lo folds
 
-set.seed(560)
+set.seed(5600)
 block_folds <- spatial_block_cv(train, v = 5)
 autoplot(block_folds)
 
 ## Eliminamos geometry 
 train<- as.data.frame(train)
-train<- train %>% select(-geometry,-SCANOMBRE, -CODIGO_MAN, -CODIGO_UPZ, 
+train<- train %>% select(-geometry,-scanombre, -codigo_man, -codigo_upz, 
                          -description, -title)
 test<- as.data.frame(test)
-test<- test %>% select(-geometry, -SCANOMBRE, -CODIGO_MAN, -CODIGO_UPZ)
+test<- test %>% select(-geometry, -scanombre, -codigo_man, -codigo_upz)
 
 ### configuramos tidymodels (receta)
 
 rec_1 <- recipe(ln_price ~ . , data = train) %>%
-  step_rm(property_id, city, operation_type) %>% # Eliminamos variables que no queremos como predictores
+  step_rm(property_id, city, operation_type, nombre_upz, text,
+          grupo_econom_manz, cocina_integral, parqueadero_visitantes, 
+          lavanderia, walking_closet, balcon, seguridad, gimnasio, price) %>% # Eliminamos variables que no queremos como predictores
   step_dummy(all_nominal_predictors()) %>%  # crea dummies para las variables categóricas
-  step_zv(all_predictors()) %>%   #  elimina predictores con varianza cero (constantes)
-  step_normalize(all_predictors())  # normaliza los predictores. 
+  step_novel(all_nominal_predictors()) %>%
+  step_zv(all_predictors()) %>%   #  elimina predictores con varianza cero (constantes) 
+  step_normalize(all_numeric_predictors())  # normaliza los predictores. 
 
 ### creamos specificación
 
-reg_lineal <- linear_reg() %>% set_engine("lm") 
+elastic_net <- linear_reg(penalty = tune(), mixture = tune()) %>%
+  set_engine("glmnet") 
+
 
 ### Configuramos flujo de trabajo
 
@@ -100,36 +105,35 @@ workflow_1 <- workflow() %>%
   # Agregar la receta de preprocesamiento de datos. En este caso la receta 1
   add_recipe(rec_1) %>%
   # Agregar la especificación del modelo de regresión Elastic Net
-  add_model(reg_lineal)
+  add_model(elastic_net)
 
 ### configuramos modelos
-set.seed(10001)
 
-tune_res1 <- tune_grid(
-  workflow_1,         # El flujo de trabajo que contiene: receta y especificación del modelo
-  resamples = block_folds,  # Folds de validación cruzada espacial
-  metrics = metric_set(mae), # metrica
+fit_res1 <- tune_grid(
+  workflow_1,
+  resamples = block_folds,    # Folds de validación cruzada espacial
+  metrics = metric_set(mae)
 )
 
-### ver resultado
-collect_metrics(tune_res1)
+### Ver resultado
+collect_metrics(fit_res1)
 
 ### Mejor metrica (en este caso es lm entonces no hay hiperparametros)
-best_tune<- select_best(tune_res1, metric = "mae")
+best_tune<- select_best(fit_res1, metric = "mae")
 
 ###Finalizamos flujo
 res1_final <- finalize_workflow(workflow_1, best_tune)
 
-#Sacamos los coef (para el caso de regression)
-reg_coef <- fit(res1_final, data = train)
+# Entrena el modelo en toda la base de entrenamiento
+final_fit <- fit(res1_final, data = train)
 
-## Creamos submiission 1
-pred1_ln<-as.vector(predict(reg_coef,test))
+## Creamos submission 1
+pred1_ln<-as.vector(predict(final_fit,test))
 pred1_ln<-pred1_ln[[1]]
 
-sub1<- test %>% mutate(price=exp(pred1_ln))  %>% 
-  mutate(price=round(price))  %>% 
+sub2<- test %>% mutate(price=exp(pred1_ln))  %>% 
+  mutate(price=floor(price))  %>% 
   select(property_id, price)
 
 ###export submission
-export(sub1, 'Stores/submits/reg_lineal.csv')
+export(sub2, 'stores/submits/elastic_net_floor.csv')
