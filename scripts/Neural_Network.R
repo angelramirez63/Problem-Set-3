@@ -329,14 +329,12 @@ train_db <- train_db %>%
 
 #Volver númericas variables que no son factor 
 train_db <- train_db %>% 
-  mutate(property_id = as.double(property_id), #Esta variable estába como factor y tenia 48930 niveles 
-         ESTRATO = as.factor(ESTRATO), 
-  )
+  mutate(ESTRATO = as.factor(ESTRATO)) %>% 
+  select(-property_id)
 
 test_db <- test_db %>% 
-  mutate(property_id = as.double(property_id), #Esta variable estába como factor y tenia 48930 niveles 
-         ESTRATO = as.factor(ESTRATO), 
-  )
+  mutate(ESTRATO = as.factor(ESTRATO)) %>% 
+  select(-property_id) 
 
 #"one_hot" encoding las variables categóricas (strings) para que keras las pueda usar
 dmy <- caret::dummyVars(
@@ -356,6 +354,14 @@ dmy <- caret::dummyVars(
   fullRank = TRUE # Evitar la multicolinealidad
 )
 test_db <- as.data.frame(predict(dmy, newdata = test_db))
+rm(dmy)
+
+#La base de testeo tiene menos categorías que la base de entrenamiento. Porque en la entrenamiento
+#hay observaciones en barrios y localidades que no están en la de testeo 
+test_vars <- colnames(test_db)
+train_vars <- colnames(train_db)
+difference_dummy_vars <- setdiff(train_vars, test_vars)
+rm(test_vars, train_vars)
 
 #Remover niveles que no están en ambas bases para poder generar luego las predicciones 
 train_db <- train_db %>% 
@@ -373,13 +379,64 @@ train_db <- train_db %>%
 #Entrenamiento 
 y_train <- train_db$price
 X_train <- train_db %>% 
-            select(-price)   #Tenemos 160 variables predictoras
+            select(-price)   #Tenemos 159 variables predictoras
   
 y_train <- as.matrix(y_train)
 X_train <- as.matrix(X_train)
 
 
 
+##Verificar que las variables esten en el formato correcto---------####
+
+#Para que keras y sus depedencias funcionen las variables: 
+#(i) No deben tener missing values
+#(ii) Las variables deden ser númericas. Las variables categorícas se deben convertir a dummys
+
+
+#Verificar si hay missing values 
+any(is.na(X_train)) #Hay 113 missings values en la base de entrenamiento
+any(is.na(y_train)) #No hay missings en la variable de respuesta
+
+missings_train <- train_db %>% 
+  filter(is.na(grupo_econom_manzCOMERCIO))
+
+#Estadísticas descriptivas missings_train 
+stargazer(missings_train, type = "text", digits = 3)
+stargazer(train_db, type = "text", digits = 3)
+#En la base de missings hay observaciones en teusaquillo por lo demas no parece
+#haber una comportamento diferente con la base de entrenamiento completa 
+
+vars_esctructura_1 <-  c("price", "bedrooms", "n_banos", "n_parqueaderos", "area")
+for (variable in vars_esctructura_1){
+  
+  print(PlotDensity(variable, "missings_train"))
+  
+}
+
+#Como no parece que los missings esten relacionados sistematicamente conalguna caraceterísticas 
+#los vamos imputar con el valor más común, que es 0 
+train_db <- train_db %>% 
+            mutate( `grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC` = ifelse(is.na(`grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC`), 0, `grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC`), 
+                     grupo_econom_manzCOMERCIO = ifelse(is.na(grupo_econom_manzCOMERCIO), 0, grupo_econom_manzCOMERCIO), 
+                     grupo_econom_manzHOTELES = ifelse(is.na(grupo_econom_manzHOTELES), 0 , grupo_econom_manzHOTELES), 
+                     grupo_econom_manzLOTES = ifelse(is.na(grupo_econom_manzLOTES), 0 , grupo_econom_manzLOTES), 
+                     grupo_econom_manzOFICINAS = ifelse(is.na(grupo_econom_manzOFICINAS), 0, grupo_econom_manzOFICINAS), 
+                     grupo_econom_manzOTROS = ifelse(is.na(grupo_econom_manzOTROS), 0, grupo_econom_manzOTROS),
+                     grupo_econom_manzRESIDENCIAL = ifelse(is.na(grupo_econom_manzRESIDENCIAL), 0, grupo_econom_manzRESIDENCIAL), 
+                    `grupo_econom_manzUNIVERSIDADES Y COLEGIOS` = ifelse(is.na(`grupo_econom_manzUNIVERSIDADES Y COLEGIOS`), 0, `grupo_econom_manzUNIVERSIDADES Y COLEGIOS`)
+            )
+skim(train_db) #Se imputaron los NA correctamente
+
+
+#Verificar si hay variables no númericas (todas las variables son númericas)
+str(X_train)
+str(y_train)
+
+
+#Volver a definir X_train
+X_train <- train_db %>% 
+            select(-price)   #Tenemos 159 variables predictoras
+X_train <- as.matrix(X_train)
 
 #Especificar la arquitectura de la red -----------------------------------------
 
@@ -394,7 +451,7 @@ X_train <- as.matrix(X_train)
 model <- keras_model_sequential()
 
 model %>% 
-      layer_dense(units = 10, activation = "relu", input_shape = c(160)) %>% 
+      layer_dense(units = 10, activation = "relu", input_shape = c(159)) %>% 
       layer_dense(units = 10, activation = "relu") %>% 
       layer_dense(units = 1)
 summary(model)
@@ -402,7 +459,7 @@ summary(model)
 #Compilar el modelo ------------------------------------------------------------
 
 model %>% compile(loss = "mse",
-                optimizer = 'sgd', #Método para minizar la función de pérdido - Stocastic Gradient Descent
+                optimizer = 'adam', #Método para minizar la función de pérdido - Stocastic Gradient Descent
                 metrics = list("mean_absolute_error") # H.W. probar también mean_absolute_error
 )
 
