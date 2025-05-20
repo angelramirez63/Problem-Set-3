@@ -123,6 +123,10 @@ rm(zero_var_check)
 db <- db %>% 
       select(-text, -title, -description)
 
+#Remover variables que tienen otras variables con la misma información (nos qudamos con las upz para reducir el costo computacional)
+db <- db %>% 
+      select(-NOMBRE_UPZ, -SCANOMBRE, -CODIGO_MAN)
+
 #Resumir variables de crimen ---------------------------------------------------
 #Esto es para reducir la dimensionalidad del dataframe
 
@@ -136,6 +140,7 @@ db <- db %>%
              -n_hurtopersonas, -n_hurtoscelular, -n_hurtosresidencias, -n_hurtoscomercio)
 
 #Después de este proceso removí 25 variables 
+
 
 #Tratar outliers ---------------------------------------------------------------
 
@@ -268,7 +273,7 @@ for (variable in vars_esctructura_1){
   
 }
 #Los apartamento gigantes que queden si tiene en promedio más baños y habitaciones que los demás
-rm(apartamentos_gigantes)
+rm(apartamentos_gigantes, id_aptos_gigantes_originales)
 
 ##Tratar valores atípicos variable de precio------------------####
 
@@ -284,13 +289,13 @@ apartamentos_caros <- train_db %>%
 #Caracterización apartamentos caros
 for (variable in vars_esctructura_1){
   
-  print(PlotDensity(variable, "extreme_values"))
+  print(PlotDensity(variable, "apartamentos_caros"))
   
 }
 
 for (variable in vars_esctructura_2){
   
-  print(PlotDensity(variable, "extreme_values"))
+  print(PlotDensity(variable, "apartamentos_caros"))
   
 }
 
@@ -300,13 +305,120 @@ for (variable in vars_esctructura_2){
 rm(apartamentos_caros)
 
 
-#=============================== Playground ====================================
+#========================== Entrenar red neuronal ==============================
 
-#Cargar base train original 
-train_original <- read.csv("train.csv") 
 
-aptos_gigantes_db_origianl <- train_original %>% filter(surface_total > 1000)
+#Preparar datos para el entrenamiento ------------------------------------------
 
+
+#Dividir base entre entrenamiento y testo 
+test_db <- db %>% 
+           filter(train == 0) %>% 
+           select(-train)
+
+rm(db)
+
+#Remover lat y lon ya que ya tenemos las variables espaciales 
+test_db <- test_db %>%
+           select(-lat, -lon)
+
+train_db <- train_db %>%
+            select(-lat, -lon)
+
+##Volver factor variables dummy variables------------####
+
+#Volver númericas variables que no son factor 
+train_db <- train_db %>% 
+  mutate(property_id = as.double(property_id), #Esta variable estába como factor y tenia 48930 niveles 
+         ESTRATO = as.factor(ESTRATO), 
+  )
+
+test_db <- test_db %>% 
+  mutate(property_id = as.double(property_id), #Esta variable estába como factor y tenia 48930 niveles 
+         ESTRATO = as.factor(ESTRATO), 
+  )
+
+#"one_hot" encoding las variables categóricas (strings) para que keras las pueda usar
+dmy <- caret::dummyVars(
+  ~ .,
+  data =train_db,
+  sep = "_", # Separador para las variables dummy
+  drop = TRUE,
+  fullRank = TRUE # Evitar la multicolinealidad
+)
+train_db <- as.data.frame(predict(dmy, newdata = train_db))
+
+dmy <- caret::dummyVars(
+  ~ .,
+  data =test_db,
+  sep = "_", # Separador para las variables dummy
+  drop = TRUE,
+  fullRank = TRUE # Evitar la multicolinealidad
+)
+test_db <- as.data.frame(predict(dmy, newdata = test_db))
+
+#Remover niveles que no están en ambas bases para poder generar luego las predicciones 
+train_db <- train_db %>% 
+            select(all_of(colnames(test_db)))
+
+#Remover ln_precio para el entrenamiento 
+test_db <- test_db %>% 
+            select(-ln_price)
+
+train_db <- train_db %>% 
+            select(-ln_price)
+
+##Variable de respuesta y predictores -----------####
+
+#Entrenamiento 
+y_train <- train_db$price
+X_train <- train_db %>% 
+            select(-price)   #Tenemos 160 variables predictoras
+  
+y_train <- as.matrix(y_train)
+X_train <- as.matrix(X_train)
+
+
+
+
+#Especificar la arquitectura de la red -----------------------------------------
+
+#Hiperparámetros: 
+#(i)Número de nodos por capa oculta 
+#(ii) Función de activación 
+#(iii) Función de la capa de salida
+#(iv) Número de capas ocultas 
+#(v) Método para optimizar la función de perdida (Es gradiente descent o una variación)
+
+
+model <- keras_model_sequential()
+
+model %>% 
+      layer_dense(units = 10, activation = "relu", input_shape = c(160)) %>% 
+      layer_dense(units = 10, activation = "relu") %>% 
+      layer_dense(units = 1)
+summary(model)
+      
+#Compilar el modelo ------------------------------------------------------------
+
+model %>% compile(loss = "mse",
+                optimizer = 'sgd', #Método para minizar la función de pérdido - Stocastic Gradient Descent
+                metrics = list("mean_absolute_error") # H.W. probar también mean_absolute_error
+)
+
+
+#Entrenar el modelo-------------------------------------------------------------
+
+history_original <- model %>% fit(
+  X_train, y_train, 
+  epochs = 20, 
+  batch_size = 40
+)
+
+
+
+
+#============================== Playground  ====================================
 ##Ideas para mejorar el modelo---------------------------------------------------
 
 #(1)Remover valores atipicos de la variable de precios 
