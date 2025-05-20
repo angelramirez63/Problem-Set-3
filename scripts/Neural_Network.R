@@ -320,21 +320,19 @@ rm(db)
 
 #Remover lat y lon ya que ya tenemos las variables espaciales 
 test_db <- test_db %>%
-           select(-lat, -lon)
+           select(-lat, -lon, -property_id)
 
 train_db <- train_db %>%
-            select(-lat, -lon)
+            select(-lat, -lon, -property_id)
 
 ##Volver factor variables dummy variables------------####
 
 #Volver númericas variables que no son factor 
 train_db <- train_db %>% 
-  mutate(ESTRATO = as.factor(ESTRATO)) %>% 
-  select(-property_id)
+  mutate(ESTRATO = as.factor(ESTRATO)) 
 
 test_db <- test_db %>% 
-  mutate(ESTRATO = as.factor(ESTRATO)) %>% 
-  select(-property_id) 
+  mutate(ESTRATO = as.factor(ESTRATO)) 
 
 #"one_hot" encoding las variables categóricas (strings) para que keras las pueda usar
 dmy <- caret::dummyVars(
@@ -367,7 +365,7 @@ rm(test_vars, train_vars)
 train_db <- train_db %>% 
             select(all_of(colnames(test_db)))
 
-#Remover ln_precio para el entrenamiento 
+#Remover ln_precio para el entrenamiento (para no tener dos veces la variable de respuesta)
 test_db <- test_db %>% 
             select(-ln_price)
 
@@ -391,6 +389,7 @@ X_train <- as.matrix(X_train)
 #Para que keras y sus depedencias funcionen las variables: 
 #(i) No deben tener missing values
 #(ii) Las variables deden ser númericas. Las variables categorícas se deben convertir a dummys
+#(iii) Las variables deben estar en escalas con valores que no sean muy extremos
 
 
 #Verificar si hay missing values 
@@ -438,6 +437,10 @@ X_train <- train_db %>%
             select(-price)   #Tenemos 159 variables predictoras
 X_train <- as.matrix(X_train)
 
+#Normalizar 
+X_train <- scale(X_train)
+y_train <- y_train / 1e6 #1e6 es igual a un millón
+
 #Especificar la arquitectura de la red -----------------------------------------
 
 #Hiperparámetros: 
@@ -459,7 +462,7 @@ summary(model)
 #Compilar el modelo ------------------------------------------------------------
 
 model %>% compile(loss = "mse",
-                optimizer = 'adam', #Método para minizar la función de pérdido - Stocastic Gradient Descent
+                optimizer = optimizer_adam(), #Método para minizar la función de pérdido - Stocastic Gradient Descent
                 metrics = list("mean_absolute_error") # H.W. probar también mean_absolute_error
 )
 
@@ -469,10 +472,18 @@ model %>% compile(loss = "mse",
 history_original <- model %>% fit(
   X_train, y_train, 
   epochs = 20, 
-  batch_size = 40
+  batch_size = 40 , 
+  validation_split = 0.3
 )
 
+history_original
 
+#Predicción a Kaggle -----------------------------------------------------------
+# Predicción en millones
+y_pred_scaled <- predict(model, X_test)
+
+# Revertir escala: pasar de millones a valor original
+y_pred <- y_pred_scaled * 1e6
 
 
 #============================== Playground  ====================================
