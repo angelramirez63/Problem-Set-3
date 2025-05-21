@@ -382,6 +382,12 @@ X_train <- train_db %>%
 y_train <- as.matrix(y_train)
 X_train <- as.matrix(X_train)
 
+#Testeo 
+X_test <- test_db %>% 
+          select(-price)
+
+X_test <- as.matrix(X_test)
+
 
 
 ##Verificar que las variables esten en el formato correcto---------####
@@ -395,6 +401,7 @@ X_train <- as.matrix(X_train)
 #Verificar si hay missing values 
 any(is.na(X_train)) #Hay 113 missings values en la base de entrenamiento
 any(is.na(y_train)) #No hay missings en la variable de respuesta
+any(is.na(X_test)) #Hay 28 missings en las variables que en la base de entrenamiento 
 
 missings_train <- train_db %>% 
   filter(is.na(grupo_econom_manzCOMERCIO))
@@ -426,19 +433,65 @@ train_db <- train_db %>%
             )
 skim(train_db) #Se imputaron los NA correctamente
 
+#Imputación base de testeo 
+
+test_db <- test_db %>% 
+              mutate( `grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC` = ifelse(is.na(`grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC`), 0, `grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC`), 
+                     grupo_econom_manzCOMERCIO = ifelse(is.na(grupo_econom_manzCOMERCIO), 0, grupo_econom_manzCOMERCIO), 
+                     grupo_econom_manzHOTELES = ifelse(is.na(grupo_econom_manzHOTELES), 0 , grupo_econom_manzHOTELES), 
+                     grupo_econom_manzLOTES = ifelse(is.na(grupo_econom_manzLOTES), 0 , grupo_econom_manzLOTES), 
+                     grupo_econom_manzOFICINAS = ifelse(is.na(grupo_econom_manzOFICINAS), 0, grupo_econom_manzOFICINAS), 
+                     grupo_econom_manzOTROS = ifelse(is.na(grupo_econom_manzOTROS), 0, grupo_econom_manzOTROS),
+                     grupo_econom_manzRESIDENCIAL = ifelse(is.na(grupo_econom_manzRESIDENCIAL), 0, grupo_econom_manzRESIDENCIAL), 
+                    `grupo_econom_manzUNIVERSIDADES Y COLEGIOS` = ifelse(is.na(`grupo_econom_manzUNIVERSIDADES Y COLEGIOS`), 0, `grupo_econom_manzUNIVERSIDADES Y COLEGIOS`)
+                    )
+skim(test_db) #Se imputaron los NA correctamente
+
 
 #Verificar si hay variables no númericas (todas las variables son númericas)
 str(X_train)
 str(y_train)
+str(X_test)
 
-
-#Volver a definir X_train
+#Volver a definir X_train y X_test
 X_train <- train_db %>% 
             select(-price)   #Tenemos 159 variables predictoras
 X_train <- as.matrix(X_train)
 
-#Normalizar 
-X_train <- scale(X_train)
+
+X_test <- test_db %>% 
+            select(-price)
+X_test <- as.matrix(X_test)
+
+#Normalizar sola las variables númericas
+
+#Separar numéricas y dummies
+numericas <- X_train[, sapply(X_train, is.numeric) & apply(X_train, function(x) length(unique(x)) > 2)]
+dummies <- X_train[, apply(X_train, function(x) all(x %in% c(0, 1)))]
+
+#Normalizar solo las numéricas
+numericas_scaled <- scale(numericas)
+
+#Volver a unir
+X_train <- cbind(numericas_scaled, dummies)
+
+
+#Separar numéricas continuas (más de 2 valores distintos)
+numericas_test <- X_test %>% 
+                  filter(apply(X_test))
+  
+  X_test[, sapply(X_test, is.numeric) & apply(X_test, function(x) length(unique(x)) > 2)]
+
+#Separar dummies (solo contienen 0s y 1s)
+dummies_test <- X_test[, apply(X_test, function(x) all(x %in% c(0, 1)))]
+
+#Normalizar las variables numéricas
+numericas_test_scaled <- scale(numericas_test)
+
+#Combinar nuevamente
+X_test <- cbind(numericas_test_scaled, dummies_test)
+
+#Rescalar variable de respuesta 
 y_train <- y_train / 1e6 #1e6 es igual a un millón
 
 #Especificar la arquitectura de la red -----------------------------------------
@@ -455,7 +508,6 @@ model <- keras_model_sequential()
 
 model %>% 
       layer_dense(units = 10, activation = "relu", input_shape = c(159)) %>% 
-      layer_dense(units = 10, activation = "relu") %>% 
       layer_dense(units = 1)
 summary(model)
       
@@ -479,11 +531,27 @@ history_original <- model %>% fit(
 history_original
 
 #Predicción a Kaggle -----------------------------------------------------------
+
+sample_submission <- read.csv("submission_template.csv")
+
+#Generar predicción de los precios  
+price_prediction <- model %>% 
+                   predict(X_test, batch_size = 40)
+
+
+
+
+
 # Predicción en millones
 y_pred_scaled <- predict(model, X_test)
 
+
 # Revertir escala: pasar de millones a valor original
 y_pred <- y_pred_scaled * 1e6
+
+
+
+
 
 
 #============================== Playground  ====================================
