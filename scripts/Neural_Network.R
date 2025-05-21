@@ -123,6 +123,10 @@ rm(zero_var_check)
 db <- db %>% 
       select(-text, -title, -description)
 
+#Remover variables que tienen otras variables con la misma información (nos qudamos con las upz para reducir el costo computacional)
+db <- db %>% 
+      select(-NOMBRE_UPZ, -SCANOMBRE, -CODIGO_MAN)
+
 #Resumir variables de crimen ---------------------------------------------------
 #Esto es para reducir la dimensionalidad del dataframe
 
@@ -136,6 +140,7 @@ db <- db %>%
              -n_hurtopersonas, -n_hurtoscelular, -n_hurtosresidencias, -n_hurtoscomercio)
 
 #Después de este proceso removí 25 variables 
+
 
 #Tratar outliers ---------------------------------------------------------------
 
@@ -268,7 +273,7 @@ for (variable in vars_esctructura_1){
   
 }
 #Los apartamento gigantes que queden si tiene en promedio más baños y habitaciones que los demás
-rm(apartamentos_gigantes)
+rm(apartamentos_gigantes, id_aptos_gigantes_originales)
 
 ##Tratar valores atípicos variable de precio------------------####
 
@@ -284,13 +289,13 @@ apartamentos_caros <- train_db %>%
 #Caracterización apartamentos caros
 for (variable in vars_esctructura_1){
   
-  print(PlotDensity(variable, "extreme_values"))
+  print(PlotDensity(variable, "apartamentos_caros"))
   
 }
 
 for (variable in vars_esctructura_2){
   
-  print(PlotDensity(variable, "extreme_values"))
+  print(PlotDensity(variable, "apartamentos_caros"))
   
 }
 
@@ -300,13 +305,188 @@ for (variable in vars_esctructura_2){
 rm(apartamentos_caros)
 
 
-#=============================== Playground ====================================
+#========================== Entrenar red neuronal ==============================
 
-#Cargar base train original 
-train_original <- read.csv("train.csv") 
 
-aptos_gigantes_db_origianl <- train_original %>% filter(surface_total > 1000)
+#Preparar datos para el entrenamiento ------------------------------------------
 
+
+#Dividir base entre entrenamiento y testo 
+test_db <- db %>% 
+           filter(train == 0) %>% 
+           select(-train)
+
+rm(db)
+
+#Remover lat y lon ya que ya tenemos las variables espaciales 
+test_db <- test_db %>%
+           select(-lat, -lon, -property_id)
+
+train_db <- train_db %>%
+            select(-lat, -lon, -property_id)
+
+##Volver factor variables dummy variables------------####
+
+#Volver númericas variables que no son factor 
+train_db <- train_db %>% 
+  mutate(ESTRATO = as.factor(ESTRATO)) 
+
+test_db <- test_db %>% 
+  mutate(ESTRATO = as.factor(ESTRATO)) 
+
+#"one_hot" encoding las variables categóricas (strings) para que keras las pueda usar
+dmy <- caret::dummyVars(
+  ~ .,
+  data =train_db,
+  sep = "_", # Separador para las variables dummy
+  drop = TRUE,
+  fullRank = TRUE # Evitar la multicolinealidad
+)
+train_db <- as.data.frame(predict(dmy, newdata = train_db))
+
+dmy <- caret::dummyVars(
+  ~ .,
+  data =test_db,
+  sep = "_", # Separador para las variables dummy
+  drop = TRUE,
+  fullRank = TRUE # Evitar la multicolinealidad
+)
+test_db <- as.data.frame(predict(dmy, newdata = test_db))
+rm(dmy)
+
+#La base de testeo tiene menos categorías que la base de entrenamiento. Porque en la entrenamiento
+#hay observaciones en barrios y localidades que no están en la de testeo 
+test_vars <- colnames(test_db)
+train_vars <- colnames(train_db)
+difference_dummy_vars <- setdiff(train_vars, test_vars)
+rm(test_vars, train_vars)
+
+#Remover niveles que no están en ambas bases para poder generar luego las predicciones 
+train_db <- train_db %>% 
+            select(all_of(colnames(test_db)))
+
+#Remover ln_precio para el entrenamiento (para no tener dos veces la variable de respuesta)
+test_db <- test_db %>% 
+            select(-ln_price)
+
+train_db <- train_db %>% 
+            select(-ln_price)
+
+##Variable de respuesta y predictores -----------####
+
+#Entrenamiento 
+y_train <- train_db$price
+X_train <- train_db %>% 
+            select(-price)   #Tenemos 159 variables predictoras
+  
+y_train <- as.matrix(y_train)
+X_train <- as.matrix(X_train)
+
+
+
+##Verificar que las variables esten en el formato correcto---------####
+
+#Para que keras y sus depedencias funcionen las variables: 
+#(i) No deben tener missing values
+#(ii) Las variables deden ser númericas. Las variables categorícas se deben convertir a dummys
+#(iii) Las variables deben estar en escalas con valores que no sean muy extremos
+
+
+#Verificar si hay missing values 
+any(is.na(X_train)) #Hay 113 missings values en la base de entrenamiento
+any(is.na(y_train)) #No hay missings en la variable de respuesta
+
+missings_train <- train_db %>% 
+  filter(is.na(grupo_econom_manzCOMERCIO))
+
+#Estadísticas descriptivas missings_train 
+stargazer(missings_train, type = "text", digits = 3)
+stargazer(train_db, type = "text", digits = 3)
+#En la base de missings hay observaciones en teusaquillo por lo demas no parece
+#haber una comportamento diferente con la base de entrenamiento completa 
+
+vars_esctructura_1 <-  c("price", "bedrooms", "n_banos", "n_parqueaderos", "area")
+for (variable in vars_esctructura_1){
+  
+  print(PlotDensity(variable, "missings_train"))
+  
+}
+
+#Como no parece que los missings esten relacionados sistematicamente conalguna caraceterísticas 
+#los vamos imputar con el valor más común, que es 0 
+train_db <- train_db %>% 
+            mutate( `grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC` = ifelse(is.na(`grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC`), 0, `grupo_econom_manzCLINICAS, HOSPITALES, CENTROS MEDIC`), 
+                     grupo_econom_manzCOMERCIO = ifelse(is.na(grupo_econom_manzCOMERCIO), 0, grupo_econom_manzCOMERCIO), 
+                     grupo_econom_manzHOTELES = ifelse(is.na(grupo_econom_manzHOTELES), 0 , grupo_econom_manzHOTELES), 
+                     grupo_econom_manzLOTES = ifelse(is.na(grupo_econom_manzLOTES), 0 , grupo_econom_manzLOTES), 
+                     grupo_econom_manzOFICINAS = ifelse(is.na(grupo_econom_manzOFICINAS), 0, grupo_econom_manzOFICINAS), 
+                     grupo_econom_manzOTROS = ifelse(is.na(grupo_econom_manzOTROS), 0, grupo_econom_manzOTROS),
+                     grupo_econom_manzRESIDENCIAL = ifelse(is.na(grupo_econom_manzRESIDENCIAL), 0, grupo_econom_manzRESIDENCIAL), 
+                    `grupo_econom_manzUNIVERSIDADES Y COLEGIOS` = ifelse(is.na(`grupo_econom_manzUNIVERSIDADES Y COLEGIOS`), 0, `grupo_econom_manzUNIVERSIDADES Y COLEGIOS`)
+            )
+skim(train_db) #Se imputaron los NA correctamente
+
+
+#Verificar si hay variables no númericas (todas las variables son númericas)
+str(X_train)
+str(y_train)
+
+
+#Volver a definir X_train
+X_train <- train_db %>% 
+            select(-price)   #Tenemos 159 variables predictoras
+X_train <- as.matrix(X_train)
+
+#Normalizar 
+X_train <- scale(X_train)
+y_train <- y_train / 1e6 #1e6 es igual a un millón
+
+#Especificar la arquitectura de la red -----------------------------------------
+
+#Hiperparámetros: 
+#(i)Número de nodos por capa oculta 
+#(ii) Función de activación 
+#(iii) Función de la capa de salida
+#(iv) Número de capas ocultas 
+#(v) Método para optimizar la función de perdida (Es gradiente descent o una variación)
+
+
+model <- keras_model_sequential()
+
+model %>% 
+      layer_dense(units = 10, activation = "relu", input_shape = c(159)) %>% 
+      layer_dense(units = 10, activation = "relu") %>% 
+      layer_dense(units = 1)
+summary(model)
+      
+#Compilar el modelo ------------------------------------------------------------
+
+model %>% compile(loss = "mse",
+                optimizer = optimizer_adam(), #Método para minizar la función de pérdido - Stocastic Gradient Descent
+                metrics = list("mean_absolute_error") # H.W. probar también mean_absolute_error
+)
+
+
+#Entrenar el modelo-------------------------------------------------------------
+
+history_original <- model %>% fit(
+  X_train, y_train, 
+  epochs = 20, 
+  batch_size = 40 , 
+  validation_split = 0.3
+)
+
+history_original
+
+#Predicción a Kaggle -----------------------------------------------------------
+# Predicción en millones
+y_pred_scaled <- predict(model, X_test)
+
+# Revertir escala: pasar de millones a valor original
+y_pred <- y_pred_scaled * 1e6
+
+
+#============================== Playground  ====================================
 ##Ideas para mejorar el modelo---------------------------------------------------
 
 #(1)Remover valores atipicos de la variable de precios 
