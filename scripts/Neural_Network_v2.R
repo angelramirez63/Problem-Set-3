@@ -179,8 +179,12 @@ rm(apartamentos_gigantes)
 db <- db %>% 
       select(-lat, -lon)
 
-#Guardar los índices para hacer las predicciones
+#Guardar los índices para hacer las predicciones y juntas las bases más adelante
 property_id <- db %>% select(property_id)
+property_id_test <- db %>% 
+                    filter(train == 0) %>% 
+                    select(property_id)
+
 prices <- db %>% select(property_id, price)
 db <- db %>% 
       select(-property_id) #Quitamos property id para hacer el one hot encoding 
@@ -301,6 +305,8 @@ y_train <- y_train / 1e6 #1e6 es igual a un millón
 
 #Especificar la arquitectura de la red -----------------------------------------
 
+set.seed("123") #Para que se pueden replicar los resultados
+
 #Hiperparámetros: 
 #(i)Número de nodos por capa oculta 
 #(ii) Función de activación 
@@ -346,8 +352,35 @@ price_prediction <- model %>%
 
 #Revertir escala: pasar de millones a valor original
 price_prediction <- price_prediction * 1e6
+price_prediction %>%  head() #Parece que las predicciones están bien
+
+
+#Agregar el identificador de la propiedad
+
 
 #Como agregar la property id a las predicciones
+
+property_id_test[, "price"] <- price_prediction
+final_prediction <- property_id_test
+rm(property_id_test)
+write.csv(final_prediction, "MLLNN_10_NodesHiddenLayer_1_HiddenLayer_RELU_ActivationFunction_Linear_ExitActivationFunction_Adam_optimizer.csv", row.names = FALSE)
+
+
+#======================= Entrenar Red más compleja =============================
+
+#Especificar la arquitectura de la red -----------------------------------------
+
+set.seed("123") #Para que se pueden replicar los resultados
+
+#Hiperparámetros: 
+#(i)Número de nodos por capa oculta 
+#(ii) Función de activación 
+#(iii) Función de la capa de salida
+#(iv) Número de capas ocultas 
+#(v) Método para optimizar la función de perdida (Es gradiente descent o una variación)
+
+
+model2 <- keras_model_sequential() %>% 
 
 
 
