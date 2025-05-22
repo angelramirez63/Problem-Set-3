@@ -102,7 +102,7 @@ for (variable in vars_esctructura){
   
 }
 
-##Remover variables con near zero var-------------------------####
+##Remover variables con near zero var (nzv)-------------------------####
 #Removemos estabas variables porque no aportan mucha información
 
 #Remover variables sin ninguna varianza (todos los valores con 0 en este caso)
@@ -115,10 +115,12 @@ zero_var_check <- zero_var_check %>%
                   filter(nzv == TRUE)
 
 db <- db %>% 
-  select(-has_chimenea, -has_sauna, -has_jacuzzi, -has_altillo, -has_zonas_verdes)
+  select(-has_chimenea, -has_sauna, -has_jacuzzi, -has_altillo, -has_zonas_verdes) #Estás son las variables con nzv
 rm(zero_var_check)
 
 #Se removieron 15 variables con near zero var
+
+
 
 #Remover variable de texto sin procesar(ya fueron usadas para crear otras variables)
 db <- db %>% 
@@ -126,7 +128,7 @@ db <- db %>%
 
 #Remover variables que tienen otras variables con la misma información (nos qudamos con las upz para reducir el costo computacional)
 db <- db %>% 
-      select(-NOMBRE_UPZ, -SCANOMBRE, -CODIGO_MAN, -localidad)
+      select(-NOMBRE_UPZ, -SCANOMBRE, -CODIGO_MAN, -localidad, -CODIGO_UPZ)
 
 ##Resumir variables de crimen ---------------------------------####
 #Esto es para reducir la dimensionalidad del dataframe
@@ -170,8 +172,7 @@ db <- db %>%
 
 apartamentos_gigantes <- db %>% 
   filter(area >1000) #Después de la imputación quedaron 140
-rm(apartamentos_gigantes)
-
+rm(apartamentos_gigantes, id_aptos_gigantes_originales)
 
 ##Remover algunas variables que no vamos a usar ----------------####
 
@@ -185,7 +186,7 @@ property_id_test <- db %>%
                     filter(train == 0) %>% 
                     select(property_id)
 
-prices <- db %>% select(property_id, price)
+prices <- db %>% select(property_id, ln_price)
 db <- db %>% 
       select(-property_id) #Quitamos property id para hacer el one hot encoding 
       
@@ -196,16 +197,17 @@ db <- db %>%
 db <- db %>% 
          mutate(ESTRATO = as.factor(ESTRATO), 
                 train = as.factor(train), 
+                n_localidad = as.factor(n_localidad)
                 ) 
 #Esta variable no fue tan imporante en XGboost y si esta generando problemas
 db <- db %>% 
         select(-grupo_econom_manz)
 
+#Volver un valor númerico la distancia al cbd 
 db <- db %>% 
-      mutate(n_localidad = as.integer(n_localidad), 
-             cbd_distancia = as.double(cbd_distancia))
+      mutate( cbd_distancia = as.double(cbd_distancia))
 
-#Guardar nombres de las variables númericas
+#Guardar nombres de las variables categóricas
 factor_columns <- db[sapply(db, is.factor)]
 factor_columns <- colnames(factor_columns)
 print(factor_columns)
@@ -225,18 +227,19 @@ categoricas_db <- as.data.frame(predict(dmy, newdata = categoricas_db)) #Hay una
 rm(dmy)
 
 categoricas_db[, "property_id"] <- property_id
-
+rm(factor_columns)
 
 
 #Normalizar variables númericas 
 numericas_db <- db %>%
-                select(price,!all_of(factor_columns))
+                select(!all_of(factor_columns)) %>% 
+                select(-price, -ln_price)
 
 numericas_db <- scale(numericas_db) %>% 
                 as.data.frame()
 
 numericas_db[, "property_id"] <- property_id
-numericas_db[, "price"] <- prices$price
+numericas_db[, "ln_price"] <- prices$ln_price
 
 
 #Volver a unir las bases 
@@ -282,12 +285,12 @@ train_db <- db_clean %>%
 
 #Entrenamiento 
 X_train <- train_db %>% 
-            select(-price, -ln_price)
+            select(-ln_price)
 X_train <- as.matrix(X_train)
 class(X_train)
 
 y_train <- train_db %>% 
-            select(price)
+            select(ln_price)
 
 y_train <- as.matrix(y_train)
 class(y_train)
@@ -295,12 +298,12 @@ class(y_train)
 
 #Testeo
 X_test <- test_db %>% 
-          select(-price, -ln_price)
+          select(-ln_price)
 X_test <- as.matrix(X_test)
 class(X_test)
 
-#Rescalar variable de respuesta ¡¡¡¡¡¡¡¡¿Por qué esto mejora tanto el modelo?!!!!!!!!
-y_train <- y_train / 1e6 #1e6 es igual a un millón
+#Rescalar variable de respuesta (este paso se hace cuando la red no se corre usando el logaritmo)
+#y_train <- y_train / 1e6 #1e6 es igual a un millón
 
 
 #Especificar la arquitectura de la red -----------------------------------------
@@ -318,7 +321,7 @@ set.seed("123") #Para que se pueden replicar los resultados
 model <- keras_model_sequential()
 
 model %>% 
-  layer_dense(units = 10, activation = "relu", input_shape = c(136)) %>% 
+  layer_dense(units = 10, activation = "relu", input_shape = c(70)) %>% 
   layer_dropout(rate = 0.2) %>%
   layer_dense(units = 1)
 summary(model)
@@ -379,26 +382,76 @@ set.seed("123") #Para que se pueden replicar los resultados
 #(iv) Número de capas ocultas 
 #(v) Método para optimizar la función de perdida (Es gradiente descent o una variación)
 
-
+#Especificar la arquitectura de la red------------------------------------------
 model2 <- keras_model_sequential() %>% 
+          layer_dense(units = 64, activation = "relu", input_shape = c(70), 
+                      kernel_regularizer = regularizer_l2(0.002)) %>%
+          layer_dense(units = 32, activation = "relu") %>% 
+          layer_dropout(rate = 0.3) %>%
+          layer_dense(units = 10, activation = "relu") %>% 
+          layer_dropout(rate = 0.3) %>%
+          layer_dense(units = 1)
+
+summary(model2)
+  
+
+#Compilar el modelo ------------------------------------------------------------
+
+model2 %>% compile(loss = "mse",
+                  optimizer = optimizer_adam(), #Método para minizar la función de pérdido - Stocastic Gradient Descent
+                  metrics = list("mean_absolute_error") 
+)
+
+#learning_rate = 1e-3
+
+#Función de earlystopping
+stop_when <- callback_early_stopping(
+             monitor = "mean_absolute_error", # La métrica a monitorear
+             mode = "min", # El modo de monitoreo (max o min). 
+             # Es decir, el entrenamiento se detendrá 
+             # si la métrica deja de aumentar
+             patience = 2, # Número de épocas a esperar antes de detener el entrenamiento
+             restore_best_weights = TRUE, # Restaurar los pesos del modelo a la mejor época
+)
 
 
-
-#============================== Playground  ====================================
-##Ideas para mejorar el modelo---------------------------------------------------
-
-#(1)Remover valores atipicos de la variable de precios 
-#(2)Hacer componentes principales para mejorar el modelo 
+#Entrenar el modelo-------------------------------------------------------------
 
 
+history2 <- model2 %>% fit(
+                    X_train, y_train, 
+                    epochs = 2, 
+                    batch_size = 400, 
+                    validation_split = 0.3, 
+                    #callbacks = list(stop_when)
+)
+
+history2
+plot(history2)
+
+#Apartir de la segunda época la red empieza a hacerle overfitting a los datos y la reducción en el error es marginal
+
+#Predicción a Kaggle -----------------------------------------------------------
+
+sample_submission <- read.csv("submission_template.csv")
+
+#Generar predicción de los precios  
+price_prediction <- model2 %>% 
+  predict(X_test, batch_size = 400)
+
+#Revertir escala: pasar de millones a valor original
+price_prediction <- exp(price_prediction)
+price_prediction %>%  head() #Parece que las predicciones están bien
 
 
+#Agregar el identificador de la propiedad
 
 
+#Como agregar la property id a las predicciones
 
-
-
-
-
+property_id_test[, "price"] <- price_prediction
+final_prediction <- property_id_test
+rm(property_id_test)
+write.csv(final_prediction, "MLLNN_64_NodesHiddenLayer_4_HiddenLayer_RELU_ActivationFunction_Linear_ExitActivationFunction_Adam_optimizer.csv", row.names = FALSE)
 
 
