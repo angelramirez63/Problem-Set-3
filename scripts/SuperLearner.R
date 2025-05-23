@@ -146,8 +146,53 @@ test <- db %>%
 # Semilla para reproducibilidad
 set.seed(102030)
 
+# Definimos valores
+train_0 <- st_drop_geometry(train)
+
+test_0 <- st_drop_geometry(test)
+
+y <- train_0$price
+
+X <- as.matrix(train_0[, c("bedrooms", "property_type", "localidad", 
+                           "distnearestlibrary", 
+                           "distnearestschool", "distnearestmuseum", 
+                           "recaudo_predial", "distnearestpark", 
+                           "distnearestmall", "distnearesttransmi", 
+                           "estrato", "aval_comer_manz", "aval_catas_manz", 
+                           "distnearestsitp", 
+                           "n_localidad", "n_homicidios", "n_lesiones", 
+                           "n_hurtopersonas", "n_hurtosautos", 
+                           "n_hurtosresidencias", "n_hurtosbicis", 
+                           "n_hurtosmotos", "n_hurtoscomercio", 
+                           "n_hurtoscelular", "n_delitossexales", 
+                           "n_violenciaintra", "codigo_man", 
+                           "num_restaurantes_manz", "distrestaurantebar", 
+                           "distcicloruta", "area_resid_manz", "cbd_distancia", 
+                           "distnearestcai", "distnearesthospital", 
+                           "distnearestgym", "distnearestconveniencestore", 
+                           "distnearestpharmacy", 
+                           "cocina_americana", "cocina_integral", 
+                           "parqueadero_visitantes", "lavanderia", 
+                           "gimnasio", "balcon", "seguridad", 
+                           "walking_closet", "bbq", "terraza", "deposito", 
+                           "chimenea", "conjunto", "ascensor", "patio", 
+                           "duplex", "piscina", "sauna", "jacuzzi", 
+                           "altillo", "zona_verde", "n_banos", "area", 
+                           "n_parqueaderos")])
+
+set.seed(102030)
+
 # Creamos 5 folds para validación cruzada
 folds <- 5
 index <- split(sample(1:length(y)), rep(1:folds, length = length(y)))
 
-db_0 <- st_drop_geometry(db)
+#Vamos a usar, lm, rpart y xgboost
+sl.lib <- c("SL.lm", "SL.rpart", "SL.xgboost")
+
+# Ejecutamos SuperLearner con el paquete
+
+set.seed(102030)
+fitY <- SuperLearner(Y = y, X = data.frame(X), 
+                     method = "method.NNLS",
+                     SL.library = sl.lib,
+                     cvControl = list(V = folds, validRows = index))
