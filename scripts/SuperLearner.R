@@ -208,9 +208,9 @@ fitY <- SuperLearner(Y = y, X = data.frame(X),
 
 fitY
 
-yhat_SL_neigh<-predict(fitY, newdata = data.frame(test), onlySL = T)$pred
+yhat<-predict(fitY, newdata = data.frame(test), onlySL = T)$pred
 
-SL_1 <- test  %>% mutate(price=exp(yhat_SL_neigh)) %>% 
+SL_1 <- test  %>% mutate(price=exp(yhat)) %>% 
   select(price, property_id)
 
 SL_1 <- st_drop_geometry(SL_1)
