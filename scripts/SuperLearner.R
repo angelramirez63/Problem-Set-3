@@ -210,7 +210,7 @@ fitY
 
 yhat<-predict(fitY, newdata = data.frame(test), onlySL = T)$pred
 
-SL_1 <- test  %>% mutate(price=exp(yhat)) %>% 
+SL_1 <- test  %>% mutate(price=yhat) %>% 
   select(price, property_id)
 
 SL_1 <- st_drop_geometry(SL_1)
