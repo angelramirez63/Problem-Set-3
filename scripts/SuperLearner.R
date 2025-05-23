@@ -144,44 +144,49 @@ test <- db %>%
 train <- train %>% clean_names()
 test <- test %>% clean_names()
 
+str(train)
+str(test)
+
+factor_vars <- sapply(train, is.factor)
+
+# Verificar la cantidad de niveles en cada variable categórica
+levels_count <- sapply(train[factor_vars], function(x) length(unique(x)))
+print(levels_count)
+
+# Identificar variables con menos de 2 niveles
+single_level_vars <- names(which(levels_count < 2))
+
 #__________________________SuperLearner_________________________________________
 
 # Semilla para reproducibilidad
 set.seed(102030)
 
+train$log_price <- log(test_clean$price)
+
 # Definimos valores
-train_0 <- st_drop_geometry(tr)
+y <- train$log_price
 
-test_0 <- st_drop_geometry(test)
-
-y <- train_0$price
-
-X <- as.matrix(train_0[, c("bedrooms", "property_type", 
-                           "distnearestlibrary", 
-                           "distnearestschool", "distnearestmuseum", 
-                           "recaudo_predial", "distnearestpark", 
-                           "distnearestmall", "distnearesttransmi", 
-                           "estrato", "aval_comer_manz", "aval_catas_manz", 
-                           "distnearestsitp", 
-                           "n_localidad", "n_homicidios", "n_lesiones", 
-                           "n_hurtopersonas", "n_hurtosautos", 
-                           "n_hurtosresidencias", "n_hurtosbicis", 
-                           "n_hurtosmotos", "n_hurtoscomercio", 
-                           "n_hurtoscelular", "n_delitossexales", 
-                           "n_violenciaintra", 
-                           "num_restaurantes_manz", "distrestaurantebar", 
-                           "distcicloruta", "cbd_distancia", 
-                           "distnearestcai", "distnearesthospital", 
-                           "distnearestgym", "distnearestconveniencestore", 
-                           "distnearestpharmacy", 
-                           "cocina_americana", "cocina_integral", 
-                           "parqueadero_visitantes", "lavanderia", 
-                           "gimnasio", "balcon", "seguridad", 
-                           "walking_closet", "bbq", "terraza", "deposito", 
-                           "chimenea", "conjunto", "ascensor", "patio", 
-                           "duplex", "piscina", "sauna", "jacuzzi", 
-                           "altillo", "zona_verde", "n_banos", "area", 
-                           "n_parqueaderos")])
+X <- train  %>% select(bedrooms, area, n_banos, estrato,
+                       n_parqueaderos, cbd_distancia,
+                       distnearestschool, distnearesttransmi,
+                       bedrooms, distnearestmuseum, distcicloruta,
+                       distnearestpark, distnearestconveniencestore,
+                       distnearestsitp, distnearesthospital, distnearestgym,
+                       distnearestcai, distnearestlibrary,
+                       distnearestmall, aval_comer_manz, aval_catas_manz,
+                       n_homicidios, n_lesiones, n_hurtopersonas, 
+                       n_hurtosautos, n_hurtosresidencias, 
+                       n_hurtosbicis, n_hurtosmotos, n_hurtoscomercio, 
+                       n_hurtoscelular, n_delitossexales, 
+                       n_violenciaintra, num_restaurantes_manz, 
+                       area_resid_manz, cocina_americana, 
+                       cocina_integral, parqueadero_visitantes, 
+                       lavanderia, gimnasio, balcon, seguridad, 
+                       walking_closet, bbq, terraza, deposito, 
+                       chimenea, conjunto, ascensor, patio, duplex, 
+                       piscina, sauna, jacuzzi, altillo, zona_verde, 
+                       n_banos, area, n_parqueaderos
+                       )  %>% st_drop_geometry()
 
 set.seed(102030)
 
@@ -190,9 +195,7 @@ folds <- 5
 index <- split(sample(1:length(y)), rep(1:folds, length = length(y)))
 
 #Vamos a usar, lm, rpart y xgboost
-sl.lib <- c("SL.lm", "SL.rpart", "SL.xgboost")
-
-sl.lib <- c("SL.lm", "SL.rpart")
+sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet", "SL.randomForest")
 
 # Ejecutamos SuperLearner con el paquete
 
@@ -205,58 +208,92 @@ fitY <- SuperLearner(Y = y, X = data.frame(X),
 
 fitY
 
+yhat_SL_neigh<-predict(fitY, newdata = data.frame(test), onlySL = T)$pred
+
+SL_1 <- test  %>% mutate(price=exp(yhat_SL_neigh)) %>% 
+  select(price, property_id)
+
+SL_1 <- st_drop_geometry(SL_1)
+export(subXG1, 'Stores/submits/XGBoost1intento.csv')
+
 #_______________________________________________________________
 
 n <- nrow(train)  # Número total de filas
 
 # Seleccionar índices aleatorios correspondientes al 10%
-subset_index <- sample(seq_len(n), size = floor(0.05 * n))
+subset_index <- sample(seq_len(n), size = floor(0.01 * n))
 
 # Crear el nuevo data frame con el 10% de las observaciones
 tr <- train[subset_index, ]
 
 #_______________________________________________________________
 
+set.seed(102030)
 
+# Definimos valores
+y_barrio <- train$price
 
-sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet")
-
-# Validación cruzada espacial
-y_barrio<- train$price
-X_barrio<- train  %>% select(bedrooms, property_type, 
-                             distnearestlibrary, distnearestschool, 
-                             distnearestmuseum, recaudo_predial, 
-                             distnearestpark, distnearestmall, 
-                             distnearesttransmi, estrato, aval_comer_manz, 
-                             aval_catas_manz, distnearestsitp, n_localidad, 
-                             n_homicidios, n_lesiones, n_hurtopersonas, 
-                             n_hurtosautos, n_hurtosresidencias, 
-                             n_hurtosbicis, n_hurtosmotos, n_hurtoscomercio, 
-                             n_hurtoscelular, n_delitossexales, 
-                             n_violenciaintra, num_restaurantes_manz, 
-                             distrestaurantebar, distcicloruta, 
-                             area_resid_manz, cbd_distancia, distnearestcai, 
-                             distnearesthospital, distnearestgym, 
-                             distnearestconveniencestore, 
-                             distnearestpharmacy, cocina_americana, 
-                             cocina_integral, parqueadero_visitantes, 
-                             lavanderia, gimnasio, balcon, seguridad, 
-                             walking_closet, bbq, terraza, deposito, 
-                             chimenea, conjunto, ascensor, patio, duplex, 
-                             piscina, sauna, jacuzzi, altillo, zona_verde, 
-                             n_banos, area, n_parqueaderos
+X_barrio <- train  %>% select(bedrooms, area, n_banos, estrato,
+                       n_parqueaderos, cbd_distancia,
+                       distnearestschool, distnearesttransmi,
+                       bedrooms, distnearestmuseum, distcicloruta,
+                       distnearestpark, distnearestconveniencestore,
+                       distnearestsitp, distnearesthospital, distnearestgym,
+                       distnearestcai, distnearestlibrary,
+                       distnearestmall, aval_comer_manz, aval_catas_manz,
+                       n_homicidios, n_lesiones, n_hurtopersonas, 
+                       n_hurtosautos, n_hurtosresidencias, 
+                       n_hurtosbicis, n_hurtosmotos, n_hurtoscomercio, 
+                       n_hurtoscelular, n_delitossexales, 
+                       n_violenciaintra, num_restaurantes_manz, 
+                       area_resid_manz, cocina_americana, 
+                       cocina_integral, parqueadero_visitantes, 
+                       lavanderia, gimnasio, balcon, seguridad, 
+                       walking_closet, bbq, terraza, deposito, 
+                       chimenea, conjunto, ascensor, patio, duplex, 
+                       piscina, sauna, jacuzzi, altillo, zona_verde, 
+                       n_banos, area, n_parqueaderos
 )  %>% st_drop_geometry()
 
+# Index
 index <- split(1:nrow(train),train$scanombre)
 
 folds<-length(index)
 
-fitY_neigh <- SuperLearner(Y = y_neigh, X = data.frame(X_neigh),
+sl.lib <- c("SL.lm", "SL.rpart", "SL.xgboost")
+
+fitY_neigh <- SuperLearner(Y = y_barrio, X = data.frame(X_barrio),
     method = "method.NNLS", SL.library = sl.lib,
     cvControl = list(V = folds, validRows = index))
 
 yhat_SL_neigh<-predict(fitY_neigh, newdata = data.frame(test), onlySL = T)$pred
 
-test<- test  %>% mutate(price_hat_SL_neigh=exp(yhat_SL_neigh))
+SL_1 <- test  %>% mutate(price=exp(yhat_SL_neigh)) %>% 
+  select(price, property_id)
 
-mean(abs(test$Sale_Price-round(test$price_hat_SL_neigh)))
+SL_1 <- st_drop_geometry(SL_1)
+export(subXG1, 'Stores/submits/XGBoost1intento.csv')
+
+mean(abs(test$Sale_Price-round(test$price)))
+
+#_______________________________________________________________________________
+
+sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet", "SL.randomForest")
+
+X <- train  %>% select(bedrooms, area
+)  %>% st_drop_geometry()
+
+fitY_0 <- SuperLearner(Y = y, X = data.frame(X), 
+                     method = "method.NNLS",
+                     SL.library = sl.lib,
+                     cvControl = list(V = folds, validRows = index),
+                     verbose = TRUE)
+
+fitY_0
+
+yhat_SL_neigh<-predict(fitY_0, newdata = data.frame(test), onlySL = T)$pred
+
+SL_1 <- test  %>% mutate(price=yhat_SL_neigh) %>% 
+  select(price, property_id)
+
+SL_1 <- st_drop_geometry(SL_1)
