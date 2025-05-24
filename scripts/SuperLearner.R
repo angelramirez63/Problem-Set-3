@@ -159,6 +159,8 @@ single_level_vars <- names(which(levels_count < 2))
 
 #__________________________SuperLearner_________________________________________
 
+
+
 # Semilla para reproducibilidad
 set.seed(102030)
 
@@ -196,7 +198,7 @@ index <- split(sample(1:length(y)), rep(1:folds, length = length(y)))
 #_____INTENTO 1___________________________-
 
 #Vamos a usar, lm, rpart y xgboost
-sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet")
+sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet", "SL.randomForest")
 
 # Ejecutamos SuperLearner con el paquete
 
@@ -217,10 +219,10 @@ SL_1 <- test  %>% mutate(price=yhat) %>%
 SL_1 <- st_drop_geometry(SL_1)
 export(SL_1, 'Stores/submits/SL_lm_cart_en.csv')
 
-#____INTENTO 2_____________________________
+#_____INTENTO 2___________________________-
 
 #Vamos a usar, lm, rpart y xgboost
-sl.lib <- c("SL.glmnet", "SL.randomForest")
+  sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet")
 
 # Ejecutamos SuperLearner con el paquete
 
@@ -235,8 +237,65 @@ fitY
 
 yhat<-predict(fitY, newdata = data.frame(test), onlySL = T)$pred
 
-SL_1 <- test  %>% mutate(price=yhat) %>% 
+SL_2 <- test  %>% mutate(price=yhat) %>% 
   select(price, property_id)
 
-SL_1 <- st_drop_geometry(SL_1)
-export(SL_1, 'Stores/submits/SL_EN_RF.csv')
+SL_2 <- st_drop_geometry(SL_2)
+export(SL_2, 'Stores/submits/SL_lm_cart_en.csv')
+
+#____INTENTO 3_____________________________
+
+#Vamos a usar lso mismos modelos pero prediciendo el logaritmo natural
+
+train$price <- log(train$price)
+y <- train$price
+
+# Métodos
+sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet")
+
+# Ejecutamos SuperLearner con el paquete
+
+set.seed(102030)
+fitY <- SuperLearner(Y = y, X = data.frame(X), 
+                     method = "method.NNLS",
+                     SL.library = sl.lib,
+                     cvControl = list(V = folds, validRows = index),
+                     verbose = TRUE)
+fitY
+
+yhat<-predict(fitY, newdata = data.frame(test), onlySL = T)$pred
+
+SL_3 <- test  %>% mutate(price=exp(yhat)) %>% 
+  select(price, property_id)
+
+SL_3 <- st_drop_geometry(SL_2)
+export(SL_3, 'Stores/submits/SL_lm_cart_EN_log.csv')
+
+
+#_____INTENTO 3_____________________________
+
+#Vamos a usar lso mismos modelos pero prediciendo el logaritmo natural
+
+train$price <- log(train$price)
+y <- train$price
+
+# Métodos
+sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet")
+
+# Ejecutamos SuperLearner con el paquete
+
+set.seed(102030)
+fitY <- SuperLearner(Y = y, X = data.frame(X), 
+                     method = "method.NNLS",
+                     SL.library = sl.lib,
+                     cvControl = list(V = folds, validRows = index),
+                     verbose = TRUE)
+fitY
+
+yhat<-predict(fitY, newdata = data.frame(test), onlySL = T)$pred
+
+SL_2 <- test  %>% mutate(price=exp(yhat)) %>% 
+  select(price, property_id)
+
+SL_2 <- st_drop_geometry(SL_2)
+export(SL_2, 'Stores/submits/SL_lm_cart_EN_log.csv')
