@@ -9,7 +9,8 @@ p_load(tidyverse,
        sf,
        nnls,
        data.table,
-       SuperLearner
+       SuperLearner,
+       rio
 )
 
 # Crear el directorio 
@@ -161,8 +162,6 @@ single_level_vars <- names(which(levels_count < 2))
 # Semilla para reproducibilidad
 set.seed(102030)
 
-train$log_price <- log(test_clean$price)
-
 # Definimos valores
 y <- train$price
 
@@ -194,8 +193,10 @@ set.seed(102030)
 folds <- 5
 index <- split(sample(1:length(y)), rep(1:folds, length = length(y)))
 
+#_____INTENTO 1___________________________-
+
 #Vamos a usar, lm, rpart y xgboost
-sl.lib <- c("SL.lm", "SL.rpart", "SL.randomForest")
+sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet")
 
 # Ejecutamos SuperLearner con el paquete
 
@@ -214,4 +215,28 @@ SL_1 <- test  %>% mutate(price=yhat) %>%
   select(price, property_id)
 
 SL_1 <- st_drop_geometry(SL_1)
-export(subXG1, 'Stores/submits/XGBoost1intento.csv')
+export(SL_1, 'Stores/submits/SL_lm_cart_en.csv')
+
+#____INTENTO 2_____________________________
+
+#Vamos a usar, lm, rpart y xgboost
+sl.lib <- c("SL.glmnet", "SL.randomForest")
+
+# Ejecutamos SuperLearner con el paquete
+
+set.seed(102030)
+fitY <- SuperLearner(Y = y, X = data.frame(X), 
+                     method = "method.NNLS",
+                     SL.library = sl.lib,
+                     cvControl = list(V = folds, validRows = index),
+                     verbose = TRUE)
+
+fitY
+
+yhat<-predict(fitY, newdata = data.frame(test), onlySL = T)$pred
+
+SL_1 <- test  %>% mutate(price=yhat) %>% 
+  select(price, property_id)
+
+SL_1 <- st_drop_geometry(SL_1)
+export(SL_1, 'Stores/submits/SL_EN_RF.csv')
