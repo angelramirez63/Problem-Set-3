@@ -345,4 +345,5 @@ db <- db %>%
 
 # Eliminamos variables inutiles
 db <- db %>% 
-  select(-habitaciones, -rooms)
+  select(-habitaciones, -rooms, -bigramas, -trigramas,
+         -grupo_area, -text)
