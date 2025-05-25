@@ -341,3 +341,124 @@ db <- db %>% # Para los valores restantes
 db <- db %>% 
   select(-habitaciones, -rooms, -bigramas, -trigramas,
          -grupo_area, -text)
+
+#------------------------------------------------------------------------------
+
+#OUTLIERS#
+
+#Chequeo de cuantiles
+
+#ÁREA //////////////////////////////////////////////////////////////////////////
+
+log_area <- log(db$area)
+
+ggplot(db, aes(y = log_area)) +
+  geom_boxplot(fill = "#0099F8", color = "black") +
+  ggtitle("Boxplot de Log Area M2") +
+  theme_classic()
+
+
+print(paste("Max antes de winsorizar:", max(db$area, na.rm = TRUE)))
+print(paste("Min antes de winsorizar:", min(db$area, na.rm = TRUE)))
+
+print(quantile(db$area, c(0.05, 0.95), na.rm = TRUE))
+
+# Winsorizar en el percentil 97.5
+up_threshold_area <- quantile(db$area, 0.95, na.rm = TRUE)  
+down_threshold_area <- quantile(db$area, 0.05, na.rm = TRUE)
+
+# Rounding
+
+db$area <- ifelse(db$area > up_threshold_area,
+                  up_threshold_area, db$area)
+db$area <- ifelse(db$area < down_threshold_area,
+                  down_threshold_area, db$area)
+
+print(paste("Max después de winsorizar:", max(db$area, na.rm = TRUE)))
+print(paste("Min después de winsorizar:", min(db$area, na.rm = TRUE)))
+
+# Verificación
+
+summary(db$area)
+
+ggplot(db, aes(log_area)) +
+  geom_histogram(color = "#000000", fill = "#0099F8") +
+  geom_vline(xintercept = median(db$log_area, na.rm = TRUE),
+             linetype = "dashed", 
+             color = "red") +
+  geom_vline(xintercept = mean(db$log_area, na.rm = TRUE),
+             linetype = "dashed",
+             color = "blue") +  
+  ggtitle("Distribución de Log Área M2 Después de Imputar") +
+  theme_classic() +
+  theme(plot.title = element_text(size = 18))
+
+#BAÑOS //////////////////////////////////////////////////////////////////////////
+
+# Redondear y convertir a entero
+db <- db %>%
+  mutate(n_banos = round(as.numeric(n_banos)))
+
+# Verificar el resultado
+print(head(db$n_banos))
+
+
+ggplot(db, aes(y = n_banos)) +
+  geom_boxplot(fill = "#0099F8", color = "black") +
+  ggtitle("Boxplot de Baños Después de Imputar") +
+  theme_classic()
+
+#Hay pocos valores atípicos principalmente por encima del boxplot. Se corrige con menor penalización.
+
+print(paste("Max antes de winsorizar:", max(db$n_banos, na.rm = TRUE)))
+
+
+
+# Winsorizar en el percentil 97.5
+up_threshold_banos <- quantile(db$area, 0.975, na.rm = TRUE)  
+
+
+# Rounding
+
+db$n_banos <- ifelse(db$n_banos > up_threshold_banos,
+                     up_threshold_banos, db$n_banos)
+
+print(paste("Max después de winsorizar:", max(db$n_banos, na.rm = TRUE)))
+
+ggplot(db, aes(n_banos)) +
+  geom_histogram(color = "#000000", fill = "#0099F8") +
+  geom_vline(xintercept = median(db$n_banos, na.rm = TRUE),
+             linetype = "dashed", 
+             color = "red") +
+  geom_vline(xintercept = mean(db$n_banos, na.rm = TRUE),
+             linetype = "dashed",
+             color = "blue") +  
+  ggtitle("Distribución de Baños Después de Imputar") +
+  theme_classic() +
+  theme(plot.title = element_text(size = 18))
+
+#PARQUEADEROS //////////////////////////////////////////////////////////////////
+
+print(head(db$n_parqueaderos))
+
+ggplot(db, aes(y = n_parqueaderos)) +
+  geom_boxplot(fill = "#0099F8", color = "black") +
+  ggtitle("Parqueaderos Después de Imputar") +
+  theme_classic()
+
+#Se observan extremadamente pocos valores atípicos, no se imputa.
+
+ggplot(db, aes(n_parqueaderos)) +
+  geom_histogram(color = "#000000", fill = "#0099F8") +
+  geom_vline(xintercept = median(db$n_parqueaderos, na.rm = TRUE),
+             linetype = "dashed", 
+             color = "red") +
+  geom_vline(xintercept = mean(db$n_parqueaderos, na.rm = TRUE),
+             linetype = "dashed",
+             color = "blue") +  
+  ggtitle("Distribución de Parqueaderos Después de Imputar") +
+  theme_classic() +
+  theme(plot.title = element_text(size = 18))
+
+#Exportar datos ----------------------------------------------------------------
+export(db, 'base_limpia.rds')
