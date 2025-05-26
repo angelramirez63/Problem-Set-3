@@ -217,12 +217,12 @@ SL_1 <- test  %>% mutate(price=yhat) %>%
   select(price, property_id)
 
 SL_1 <- st_drop_geometry(SL_1)
-export(SL_1, 'Stores/submits/SL_lm_cart_en.csv')
+export(SL_1, 'Stores/submits/SL_lm_cart_EN_RF.csv')
 
 #_____INTENTO 2___________________________-
 
 #Vamos a usar, lm, rpart y xgboost
-  sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet")
+sl.lib <- c("SL.lm", "SL.rpart", "SL.glmnet")
 
 # Ejecutamos SuperLearner con el paquete
 
