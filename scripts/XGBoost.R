@@ -134,12 +134,6 @@ Xgboost_tree1
 #Selecting tuning parameters
 #Fitting nrounds = 500, max_depth = 5, eta = 0.1, gamma = 1, colsample_bytree = 1, min_child_weight = 10, subsample = 0.4 on full training set"
 
-
-
-na_rows <- test %>%
-  filter(!complete.cases(.))
-nrow(na_rows)
-
 # Predicción de los valores 
 
 pred_values1 <- predict(Xgboost_tree1, newdata = test)
@@ -319,10 +313,6 @@ Xgboost_tree1 <- train(price ~ bedrooms+ property_type + distnearestlibrary+
 )        
 
 Xgboost_tree1
-
-na_rows <- test %>%
-  filter(!complete.cases(.))
-nrow(na_rows)
 
 # Predicción de los valores 
 
