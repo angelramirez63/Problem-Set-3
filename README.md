@@ -1,8 +1,8 @@
 # Problem-set-3
 
-#### Juan Esteban Díaz Torres - 202020319
-#### Natalia Plata Ángel - 201730699
-#### Ángel David Ramírez Torres - 202112704
+#### Juan Esteban Díaz Torres - 202020319  
+#### Natalia Plata Ángel - 201730699  
+#### Ángel David Ramírez Torres - 202112704  
 #### Juan Pablo Grimaldos - 202122627
 
 ## Tabla de Contenidos
@@ -12,44 +12,47 @@
 - [Views](#Views)
 
 ## Documentación
-Esta carpeta contiene el archivo final con la solución del taller en formato pdf y una carpeta comprimida con el archivo .tex 
+Esta carpeta contiene el archivo final con la solución del taller en formato pdf y una carpeta comprimida con el archivo .tex.
 
 ## Scripts
-La carpeta *Scripts* contiene el script utilizado para limpiar y procesar las bases de datos, el script utilizado para realizar la estadísticas descriptivas y cuatro script con la implentación de los algoritmos utilizados para predecir la pobreza de los hogares. A continuación, se detalla la estructura y contenido:
+La carpeta *Scripts* contiene: (i) los scripts utilizados para limpiar y preprocesar la base y para agregar las variables espaciales y las provenientes del procesamiento del lenguaje natural de los títulos y la descripción de las propiedades, (ii) los scripts utilizados para generar los mapas, figuras y las tablas de estadísticas descriptivas, y (iii) los scripts utilizados para implementar los algoritmos utilizados para predecir el precio de los inmuebles. A continuación, se detalla la estructura y contenido:
 
-- **Script de limpieza:** El archivo *1_Limpieza_Consolidado_v2.R* toma las bases de datos provistas como inputs para realizar el taller y realiza la imputacion de valores faltantes, tratamiento de valores extremos, limpieza de los datos y la consolidacion de las bases de entrenamiento y de testeo a nivel de hogar. 
+- **Script para consolidar la base y agregar variables:** Los archivos *Union_datos_geograficos.R*, *Union_datos_geograficos_p2.R*, *Variables Texto.R* y *Variables_texto_final.R* fueron utilizados para agregar las variables espaciales y las provenientes del procesamiento del lenguaje natural de los títulos y las descripciones de las propiedades y para consolidar la base que usamos para entrenar los modelos.  
+  
+  > Las fuentes de los atributos espaciales son Datos Abiertos Bogotá y OpenStreetMap
 
+- **Script de estadísticas descriptivas:** Los archivos *Figuras.R* y *Tabla_estadisticas_descriptivas.R* fueron utilizados para realizar los mapas de la distribución de las propiedades según precio por metro cuadrado y estrato y la tabla de estadísticas descriptivas que compara para las bases de entrenamiento y testeo algunas de las características más importantes de las propiedades. 
 
-- **Script de estadísticas descriptivas:** En el archivo *2_Estadísticas_Descriptivas.R* se realizan las tablas con las estadísticas descriptivas para las personas clasificadas como *Pobres* y *No Pobres* con el comparar las diferencias entree ambos grupos. 
-
-- **Implementación de los algoritmos:** Cinco archivos *Elastic Net y Logit.R*, *CART.R*, *Random_Forest.R* y *Boosting.R* donde se realiza la implementación y la ejecución de la prediccion de la pobreza de los hogares por medio de Elastic Net y Regresion Logística (Logit), árbol de prediccióm, Random Forest y Adaptative Boosting (Adaboost) respectivamente. 
-
-- **Carpeta de scripts iniciales:** Finalmente, se incluye la carpeta *Deprecated* con los scripts que cada miembro del equipo utilizó para comenzar a desarrollar el taller y posteriormente fueron remplazados por scripts consolidados después de un proceso de ajuste. 
+- **Implementación de los algoritmos:** en los archivos *Elastic Net y Random Forest.R*, *Neural_Network.R*, *Neural_Network_v2.R*, *SuperLearner.R* y *XGBoost.R* se realiza la implementación de los algoritmos que están en los nombres de los archivos para predecir precios de propiedades en la ciudad de Bogotá con los requerimientos específicos de cada uno de los algoritmos.
 
 ## Stores
-Esta carpeta contiene las bases de datos provistas como insumos para realizar el taller (*train_personas.rds, train_hogares.csv, test_personas.csv, test_hogares.csv y sample_submission.csv*), la base datos *db_final.rds* consolidada usando el script *1_Limpieza_Consolidado_v2.R* y la carpeta *Predicciones*. Todos los archivos están almacenados en formato csv salvo *train_personas.rds* y *db_final.rds*. Se decidió cambiar el formato de estos archivos para poderlos subirlos a github y facilitar el trabajo. 
+Esta carpeta contiene las bases de datos provistas como insumos para realizar el taller (*train.csv, test.csv y sample_submission.csv*), las bases de datos de los atributos espaciales obtenidas de Datos Abiertos Bogotá para crear las variables espaciales, y las bases de datos consolidadas que se usaron para el entrenamiento de los modelos.  
 
-- **Predicciones:** Se incluye una carpeta con las predicciones enviadas a Kaggle por los miembros del equipo. Estas predicciones están en formato .csv 
+> La base de arbolado_urbano.zip está comprimida porque por su tamaño no podía ser subida de otra forma
+
+- **Predicciones:** Se incluye la carpeta *submits* con las predicciones enviadas a Kaggle por los miembros del equipo. Estas predicciones están en formato .csv.
 
 ## Views
-Esta carpeta contiene las gráficas y tablas generadas en la solución del taller y que se encuentran en el documento final. Las gráficas están en formato PNG y las tablas en formato tet.
+Esta carpeta contiene las gráficas, mapas y tablas generadas en la solución del taller y que se encuentran en el documento final. Los mapas y las gráficas están en formato PNG y la tabla en formato txt.
 
-### Gráficas (formato PNG):
+### Mapas y gráficas:
 
-- **desbalance_de_clases.png:** Gráfica que muestra la proporcion de pobres (Sí) y no pobres (No) en la base de datos de entrenmaiento para la variables Pobre. Esta gráfica se realizo para caracterizar el desbalance de clases en está variable. 
+- **mapa1.png**, **mapa2.png** y **mapa3.png**: Mapas que muestran la distribución de las propiedades en Bogotá por precio del metro cuadrado y estrato.
 
+- **barras1.png**: Precio por metro según los percentiles de distancia al CBD. 
+
+- **bloquescvespacial.png:** Gráfica que ejemplifica la validación cruzada espacial realizada para el XGBoost.
 
 ### Tablas (formato TXT):
 
-- **Métricas de desempeño de los modelos** En la carpeta están presentes los resultados de varias métricas de desempeño obtenidos por las combinaciones de hiperpárametros consideradas en la implementación del los algoritmos *ElasticNet* , *Random Forest* y *Adaboost* las demas tablas con están presentes en el archivo .tex del documento
-
-- **tabla_estadisticas_descriptivas.tex:** Tabla realizada usando script "2_Estadísticas_Descriptivas.R"
+- **tabla_estadisticas_descriptivas.txt**: Tabla de estadísticas descriptivas que compara características entre las propiedades en la base de entrenamiento y testeo.  
 
 ## Instrucciones para replicar el trabajo
 
-1. Correr el script de limpieza *1_Limpieza_Consolidado_v2.R*
-2. Correr el script de estadísticas descriptivas *2_Estadísticas_Descriptivas.R*
-3. Correr los scripts de los modelos: 
-  - *3_Elastic Net y Logit.R*
-  - *4_Boosting.R*
-  - *5_Random_Forest.R*
+1. Correr los scripts *Union_datos_geograficos.R*, *Variables_texto_final.R* y *Union_datos_geograficos_p2.R* en ese orden para obtener la base consolidada usada para entrenar los modelos.  
+2. Correr los scripts *Figuras.R* y *Tabla_estadisticas_descriptivas.R* para generar los mapas, figuras y la tabla de estadísticas descriptivas.  
+3. Correr los scripts de los modelos para entrenarlos:  
+   - *Elastic Net y Random Forest.R*  
+   - *Neural_Network.R* y *Neural_Network_v2.R*  
+   - *SuperLearner.R*  
+   - *XGBoost.R*  
