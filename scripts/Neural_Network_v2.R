@@ -128,7 +128,7 @@ db <- db %>%
 
 #Remover variables que tienen otras variables con la misma información (nos qudamos con las upz para reducir el costo computacional)
 db <- db %>% 
-      select(-NOMBRE_UPZ, -SCANOMBRE, -CODIGO_MAN, -localidad, -CODIGO_UPZ)
+      select(-NOMBRE_UPZ, -SCANOMBRE, -CODIGO_MAN, -localidad, -CODIGO_UPZ, -n_localidad)
 
 ##Resumir variables de crimen ---------------------------------####
 #Esto es para reducir la dimensionalidad del dataframe
@@ -197,7 +197,8 @@ db <- db %>%
 db <- db %>% 
          mutate(ESTRATO = as.factor(ESTRATO), 
                 train = as.factor(train), 
-                n_localidad = as.factor(n_localidad)
+                bedrooms = as.factor(bedrooms), 
+                n_banos = as.factor(n_banos)
                 ) 
 #Esta variable no fue tan imporante en XGboost y si esta generando problemas
 db <- db %>% 
@@ -227,7 +228,7 @@ categoricas_db <- as.data.frame(predict(dmy, newdata = categoricas_db)) #Hay una
 rm(dmy)
 
 categoricas_db[, "property_id"] <- property_id
-rm(factor_columns)
+
 
 
 #Normalizar variables númericas 
@@ -384,8 +385,8 @@ set.seed("123") #Para que se pueden replicar los resultados
 
 #Especificar la arquitectura de la red------------------------------------------
 model2 <- keras_model_sequential() %>% 
-          layer_dense(units = 64, activation = "relu", input_shape = c(70), 
-                      kernel_regularizer = regularizer_l2(0.002)) %>%
+          layer_dense(units = 128, activation = "relu", input_shape = c(75)) %>%
+          layer_dropout(rate = 0.3) %>%
           layer_dense(units = 32, activation = "relu") %>% 
           layer_dropout(rate = 0.3) %>%
           layer_dense(units = 10, activation = "relu") %>% 
@@ -452,6 +453,6 @@ price_prediction %>%  head() #Parece que las predicciones están bien
 property_id_test[, "price"] <- price_prediction
 final_prediction <- property_id_test
 rm(property_id_test)
-write.csv(final_prediction, "MLLNN_64_NodesHiddenLayer_4_HiddenLayer_RELU_ActivationFunction_Linear_ExitActivationFunction_Adam_optimizer.csv", row.names = FALSE)
+write.csv(final_prediction, "MLLNN_128_NodesHiddenLayer_3_HiddenLayer_RELU_ActivationFunction_Linear_ExitActivationFunction_Adam_optimizer.csv", row.names = FALSE)
 
 
