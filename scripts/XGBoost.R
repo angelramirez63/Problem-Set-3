@@ -256,6 +256,7 @@ tune_res1 <- tune_grid(
 
 collect_metrics(tune_res1)
 
+
 # Utilizar 'select_best' para seleccionar el mejor valor.
 best_tune_res1 <- select_best(tune_res1, metric = "mae")
 best_tune_res1
@@ -279,6 +280,57 @@ subXG2 <- data.frame(
 
 write.csv(subXG2, "submits/XGBoost2intento.csv", row.names = FALSE)
 
+#Recogiendo métricas de Importancia XGBoost Ganador ----------------------------
 
+#Grilla de búsqueda 
+
+grid_xbgoost1 <- expand.grid(nrounds = c(1000), #Iteraciones o árboles que se van a estimar para aprender más con cada uno.
+                             max_depth = c(6), #Qué tan complejo debe ser cada árbol (mayor complejidad = mayor profunidad).
+                             eta = c(0.01),  #Tasa de aprendizaje.
+                             gamma = c(0), #Nivel mínimo de reducción en la función de pérdida.
+                             min_child_weight = c(10), #Mínimo número de observaciones por nodo.
+                             colsample_bytree = c(0.52), #Porcentaje total de variables utilizadas en cada iteración.
+                             subsample = c(1)) # Porcentaje de la muestra utilizada para entrenar el modelo.
+grid_xbgoost1
+
+set.seed(1511)
+
+Xgboost_tree1 <- train(price ~ bedrooms+ property_type + distnearestlibrary+
+                         distnearestschool+ distnearestmuseum+ distnearestpark+
+                         distnearestmall+ distnearesttransmi+ estrato+ 
+                         aval_comer_manz+ aval_catas_manz +
+                         distnearestsitp+ n_homicidios+ n_lesiones+ n_hurtopersonas+
+                         n_hurtosautos+ n_hurtosresidencias+ n_hurtosbicis+n_hurtosmotos+
+                         n_hurtoscomercio+ n_hurtoscelular+ n_delitossexales+ n_violenciaintra+
+                         num_restaurantes_manz+ distcicloruta+ distnearest_cai+
+                         distnearest_hospital+ distnearest_gym+ distnearest_convenience_store+ 
+                         distnearest_pharmacy+ cocina_americana+ 
+                         has_bbq+ has_terraza_s+ has_deposito + has_chimenea_s +
+                         has_conjunto + has_ascensor_es + has_patio_s + has_duplex +
+                         has_piscina + has_sauna + has_jacuzzi + has_altillo +
+                         has_zona_s_verde_es + n_banos+ area+
+                         n_parqueaderos,
+                       data=train,
+                       method = "xgbTree", 
+                    
+                       tuneGrid=grid_xbgoost1,
+                       metric = "MAE",
+                       na.action = na.pass
+)        
+
+Xgboost_tree1
+
+na_rows <- test %>%
+  filter(!complete.cases(.))
+nrow(na_rows)
+
+# Predicción de los valores 
+
+pred_values1 <- predict(Xgboost_tree1, newdata = test)
+
+#Importancia de variables en XGBoost 1 
+
+variables_importance_XG1 <- varImp(Xgboost_tree1)
+print(variables_importance_XG1)
 
 
