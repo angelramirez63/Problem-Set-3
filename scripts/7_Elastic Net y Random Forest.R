@@ -26,7 +26,7 @@ setwd(wd)
 
 ## Datos -----------------------------------------------------------------------
 
-datos <- readRDS("stores/datos_modelos.rds")
+datos <- readRDS("stores/db_final.rds")
 
 datos <- datos %>%
   mutate(across(c(property_id, city, property_type, operation_type, 
@@ -149,10 +149,11 @@ pred1_ln<-as.vector(predict(final_fit,test))
 pred1_ln<-pred1_ln[[1]]
 
 sub2<- test %>% mutate(price=exp(pred1_ln))  %>% 
-  mutate(price=floor(price))  %>% 
+  mutate(price=round(price))  %>% 
   select(property_id, price)
 
 ###export submission
+export(fit_res1, "stores/submits/elastic_net.rds")
 export(sub2, 'stores/submits/elastic_net_floor.csv')
 
 #Ahora probamos con elastic net con grilla
