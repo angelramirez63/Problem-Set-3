@@ -1,0 +1,457 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                  File: OPTICAmeetings.tex           %
+%                  Date: 31 July 2023                 %
+%                                                     %
+%     For preparing LaTeX manuscripts for submission  %
+%     submission to Optica meetings and conferences   %
+%                                                     %
+%         (c) 2018-2022 Optica Publishing Group       %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[article,11 pt]{article} 
+\usepackage{times}
+\usepackage{float}
+\setlength{\baselineskip}{1.5\baselineskip}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+%% if A4 paper needed, change letterpaper to A4
+
+\usepackage{opticameet3} %% use version 3 for proper copyright statement
+
+%% provide authormark
+\newcommand\authormark[1]{\textsuperscript{#1}}
+
+%% standard packages and arguments should be modified as needed
+\usepackage{amsmath,amssymb}
+\usepackage[colorlinks=true,bookmarks=false,citecolor=blue,urlcolor=blue]{hyperref} %pdflatex
+%\usepackage[breaklinks,colorlinks=true,bookmarks=false,citecolor=blue,urlcolor=blue]{hyperref} %latex w/dvipdf
+\usepackage{matlab-prettifier}
+\usepackage{tabularx}
+\usepackage{titling}
+\renewcommand{\tablename}{Tabla}
+\renewcommand{\figurename}{Figura}
+
+\usepackage{fancyhdr} % Paquete para personalizar encabezados y pies de página
+\pagestyle{fancy} % Activar encabezado y pie de página personalizados
+\fancyhf{} % Limpiar configuraciones previas
+\fancyfoot[C]{\thepage} % Mostrar número de página centrado en el pie de página
+
+
+\begin{document}
+
+\title{Problem Set 3: Big Data \& Machine Learning}
+
+% \author{Author name(s)}
+% \address{Author affiliation and full address}
+% \email{e-mail address}
+%%Uncomment the following line to override copyright year from the default current year.
+%\copyrightyear{2024}
+
+\author{Juan Esteban Díaz Torres\authormark{1}, Natalia Plata Ángel \authormark{2}, Ángel David Ramírez Torres \authormark{3} y Juan Pablo Grimaldos \authormark{4} }
+
+\address{\authormark{1} 202020319
+\authormark{2} 202013152 
+\authormark{3} 202112704 
+\authormark{4} 202122627 }
+
+\href{https://github.com/angelramirez63/Problem-Set-3}{Repositorio}.
+
+%\email{\authormark{*}opex@optica.org} %% email address is required
+%\begin{abstract}
+%\LaTeX{} users preparing manuscripts for Optica meetings or conferences
+%should use  the \texttt{opticameet3.sty} style file and should observe these
+%guidelines to adhere to Optica requirements. Users of Bib\TeX{} may use the \texttt{opticajnl.bst} style file, which is included in this distribution. Comments and questions should be directed to the Optica Conference Papers staff (cstech@opg.org).
+%\end{abstract}
+
+\section{Introducción}
+
+Estimar correctamente precios de vivienda en el mercado inmobiliario es de suma importancia para diversos actores económicos. Para los compradores tener información precisa les permite tomar mejores decisiones con respecto a su activo más importante. En la mayoría de los casos la vivienda es el activo más valioso de una persona y simultáneamente su mayor fuente de deuda Bhatt.(2024). Tener una vivienda propia genera estabilidad, seguridad y es fundamental para el bienestar de cualquier ser humano como está consignado en la declaración universal de los derechos humanos. Para los constructores es indispensable conocer qué tipo de viviendas están demandando las personas y a que precio podrían venderlas en el mercado para decidir que tipos de proyectos ejecutar y cuáles son los riesgos asociados. Para las entidades financieras es de suma importancia conocer el precio de los inmuebles para conceder y diseñar correctamente créditos hipotecarios, asì como para visualizar tendencias en el mercado Sharma et al.(2024). 
+\\
+\\
+En este contexto, los algoritmos de Machine Learning son una herramienta muy efectiva para aproximarse al problema.  Limsombunchai, Gan & Lee.(2004) encontraron que una red neural tiene un mejor desempeño predictivo que una regresión hedónica dentro y fuera de muestra debido a su capacidad para adaptarse a funciones más complejas. El Mouna et al.(2023) compararon el desempeño predictivo de una regresión lineal, Random Forest y Gradient Boosting para predecir precios de vivienda. Los autores encontraron que Gradient Boosting fue el modelo que logró el mejor desempeño. Asimismo, Sharman, Harsora & Ogunleye.(2024) compararon el desempeño de una regresión lineal, Support Vector Machines, una Red Neuronal Multicapa y XGBoost para predecir precios de vivienda y encontraron que el modelo con la mayor capacidad predictiva fue XGBoost. Los autores resaltan que además del mejor desempeño, XGBoost permite identificar la importancia de las variables. 
+\\
+\\
+Para aproximarnos a este problema contamos con datos de Properati sobre las características estructurales de 48,930 propiedades residenciales en la ciudad de Bogotá (área, número de baños, número de habitaciones, entre otras) en conjunto con datos provenientes de Datos Abiertos Bogotá y Open Street Map sobre las amenidades locales cercanas a los inmuebles (parques, hospitales, restaurantes, distancia al centro de negocios de la ciudad, entre otras). La base consolidada fue preprocesada principalmente para imputar valores faltantes de las características estructurales de los inmuebles a partir del título y la descripción de estos y para calcular la distancia de las propiedades a diversas amenidades. Utilizamos estos datos para entrenar algoritmos de Machine Learning sobre los que ahondaremos más adelante. 
+\\
+\\
+De los algoritmos entrenados el que mejor desempeño predictivo tuvo fue XGBoost con un MAE de alrededor de 187 millones de pesos seguido por un SuperLeaner que pondera las predicciones de un árbol de decisión y regresión lineal (MAE de 193 millones), Random Forest (MAE de 207 millones), una Red neuronal Multicapa (MAE de 218 millones) y finalmente un Elastic Net (MAE de 242 millones). Los modelos más flexibles y menos propensos a sobreajustar los datos fueron los que obtuvieron mejores resultados. Esto evidencia que la relación entre los precios de las propiedades y sus características es compleja y requiere de modelos flexibles capaces de aproximarla sin sobreajustar los datos. Nuestros resultados son consistentes con los antecedentes revisados. 
+
+
+
+\section{Descripción de los datos}
+\subsection{Fuente}
+Los datos utilizados en este ejercicio provienen de Properati, una plataforma digital de bienes raíces en América Latina que facilita la búsqueda, compra, venta y alquiler de propiedades. La base de datos contiene información sobre 48.930 casas y apartamentos ubicados en el territorio de Bogotá. Se dispone de información sobre el precio para 38.644 inmuebles, mientras que 10.286 presentan datos faltantes en esta variable. Estos inmuebles con información incompleta se concentran principalmente en la localidad de Chapinero. Los registros incluyen la descripción del apartamento, el título del anuncio, el precio solicitado, y otras características del inmueble, como el área, la cantidad de habitaciones, baños y otras variables relevantes.
+\\
+\\
+Para complementar la información de Properati, se utilizaron dos fuentes principales de datos espaciales de la ciudad de Bogotá. La primera es Datos Abiertos Bogotá, una plataforma distrital que promueve el acceso a la información pública generada por las entidades del gobierno local. De esta fuente se obtuvieron variables como localidad, sector, estrato socioeconómico, avalúo catastral y comercial por manzana, niveles de criminalidad, presencia de restaurantes y museos, área residencial por manzana, indicadores de espacio público verde y espacio público efectivo, ubicación de Centros de Atención Inmediata (CAIs), estaciones de transporte público, recaudo predial, bibliotecas, alumbrado público y red de ciclorutas. La segunda fuente fue OpenStreetMap, un mapa colaborativo, gratuito y de código abierto, construido por una comunidad global de voluntarios. De allí se extrajo información sobre la ubicación de centros comerciales, hospitales, parques y tiendas.
+\\
+\\
+Estos datos resultan fundamentales para el desarrollo del ejercicio, ya que, según el modelo de precios hedónicos de Rosen, el valor de un inmueble está determinado tanto por sus atributos estructurales como por las características y amenidades del entorno en el que se encuentra ubicado.
+
+\subsection{Procesamiento}
+\subsubsection{Procesamiento de texto}
+
+\[
+\mathbf{X}_t = \left\{
+\begin{array}{l}
+\text{Cocina americana, Cocina integral, Parqueadero de visitantes, Lavandería, Gimnasio, Balcón,} \\
+\text{Seguridad, Walking closet, BBQ, Terraza, Depósito, Chimenea, Conjunto, Ascensor,} \\
+\text{Patio, Dúplex, Piscina, Sauna, Jacuzzi, Altillo, Zona verde, Número de baños, Área,} \\
+\text{Número de parqueaderos}
+\end{array}
+\right\}
+\]
+\\
+\\
+En cuanto a las variables construidas a partir del texto se añadieron un total de 24 variables desde las variables “description” y “title”, de las cuales 3 son variables numéricas y 21 son variables dicotómicas. La lista $X_t$ contiene los nombres de las variables construidas. Las tres variables numéricas son: área, número de baños y número de parqueaderos. El resto de las variables dicotómicas indican si esa característica hace parte de la vivienda.
+\\
+\\
+ El primer paso para la construcción de las variables fue combinar en una variable las dos variables de texto “description” y “title” de la base de datos original. Luego se buscó la frecuencia de cada palabra, par de palabras y trío de palabras, esto con la intención de buscar características compuestas por una, dos o tres palabras. Esto se realizó creando dos variables en las que estaban todas las posibles combinaciones en pares y tríos de la variable de texto construida anteriormente. Con estas variables se obtuvo la frecuencia de aparición de cada combinación y palabra individual, para ser revisada manualmente e identificada como coherente y relevante. Luego de identificar las características reportadas más comunes se revisó la codificación de manera manual, es decir, había características descritas de diferente – por lenguaje o por error – tanto como las palabras individuales como para los conjuntos de palabras. Luego de corregir por esta codificación se le asignó el valor de 1 a las viviendas que contaban con características de si o no, para las variables numéricas se tuvo un tratamiento diferente. Para las tres variables numéricas se tuvo que identificar el número anterior a la característica referente, para luego sumar los números que estuvieran presentes más de una vez en la descripción. Por ejemplo, la variable de área tenía diferencias en su codificación, se reportaba como metros cuadrados, mts2, etc, y se reportaba primero el área del primer piso y luego la del segundo piso. Luego de obtener todas las variables se realizó la imputación de las variables numéricas, dado que en las variables dicótomas se dejó como cero la inexistencia de esa característica. Para la variable de número de parqueaderos se consideró que si la característica no estaba en la descripción entonces no se contaba con ella. Para las variables de área y número de baños primero se tomaron los valores de la base original como verídicos y se reemplazaron los valores faltantes de la base original por los valores obtenidos a partir de la descripción. Como segundo paso, se imputaron los valores faltantes del área por medio de la media de los datos agrupados en barrio, habitaciones, baños, estrato y tipo de propiedad, cambiando el barrio por la upz para los valores que no se imputaron con barrio – barrio y upz se importaron de la base de datos espaciales –. La variable de baños se imputó de la misma manera añadiendo primero el área individual y luego agrupada de 10 en 10. De las variables obtenidas se resalta la variable área y número de baños como unas de las más importantes dentro de la estimación, el área como la que recoge en mayor parte el precio de las viviendas. Dada la importancia del precio por metro cuadrado en el mercado inmobiliario una buena aproximación del área es relevante en la estimación.
+
+\subsubsection{Datos espaciales}
+
+Se utilizaron distintas metodologías para vincular los datos espaciales con la base de inmuebles de Properati. Para empezar, se calculó la distancia entre cada apartamento y diferentes tipos de lugares de interés (como colegios, estaciones de transporte, parques, etc.). Esto se basa en la idea de que la cercanía a ciertos lugares puede influir en el valor de un inmueble. Por ejemplo, una vivienda podría ser más costosa si se encuentra cerca de lugares frecuentados en la vida cotidiana, como colegios, lugares de trabajo o centros comerciales.
+\\
+\\
+Para esto, se midió la distancia entre cada apartamento y todos los lugares de un mismo tipo (por ejemplo, cada colegio), y luego se guardó la distancia más corta. Es decir, para cada apartamento, se identificó cuál era el colegio más cercano, el parque más cercano, la estación más cercana, etc.En este ejercicio se trabajó con tres tipos de datos espaciales:
+
+\begin{itemize}
+    \item Puntos, como las estaciones del SITP o los CAIs. En estos casos, se calculó la distancia euclidiana entre el apartamento y cada punto, y se guardó la distancia más corta.
+
+    \item Polígonos, como parques o zonas residenciales. Como los polígonos tienen forma y tamaño, se simplificaron calculando su centroide. Luego, se midió la distancia entre el apartamento y ese centroide.
+
+    \item Líneas, como las ciclorutas o rutas de transporte público. Estas líneas se dividieron en muchos puntos a lo largo de su recorrido, y se calculó la distancia entre el apartamento y todos esos puntos, conservando nuevamente la distancia mínima.
+
+\end{itemize}
+
+Por otra parte, en el caso de polígonos como localidad, UPZ, sector y manzana, no fue necesario calcular distancias. En estos casos, bastó con identificar en qué polígono se encuentra cada apartamento, a partir de sus coordenadas geográficas. Una vez asignado el apartamento a su correspondiente polígono, fue posible asociarle las características propias de ese territorio. De esta manera, se incorporaron variables como el número de luminarias por UPZ, el estrato socioeconómico por manzana y los indicadores de espacio público verde por localidad y UPZ.
+\\
+\\
+Finalmente, se incluyó una medida de distancia entre cada apartamento y el centro de negocios de la ciudad, que se definió como el punto central entre las localidades de Chapinero, Teusaquillo, Santa Fé y Los Mártires, que corresponden a las localidades con el mayor flujo de personas durante la hora pico que reportan desplazarse para ir a trabajar (Secretaría Distrital de Movilidad, 2019).
+
+\subsection{Estadísiticas descriptivas}
+
+Las propiedades con el mayor precio por metro cuadrado están ubicadas principalmente en las localidades de Usaquén, Chapinero y Santa Fé al norte y noreste de la ciudad. En estas localidades también está la mayor concentración de propiedades de estratos 4, 5, y 6. Las propiedades con el menor precio por metro cuadrado están ubicadas principalmente en las localidades de Ciudad Bolivar, Usme, Tunjuelito, Kennedy, Bosa, Engativá y Fontibón al sur y al oeste de la ciudad. En estas localidades también está la mayor concentración de propiedades de estratos 0, 1 y 2 (Figuras 1 y 2). Esto indica que Bogotá es una ciudad segmentada en torno a las características económicas de las propiedades, donde las propiedades y en consecuencia la población se agrupa a partir de sus niveles de ingreso. Por otro lado, el valor de las propiedades también está influenciado por su cercanía al centro de negocios de la ciudad (CBD). Las propiedades que están a una distancia media del CBD tienen el mayor precio por metro cuadrado lo que implica que las personas valoran estar lo suficientemente cerca al CBD para no incurrir en altos costos de transporte, pero no quieren vivir exactamente en él (Figura 3). Con respecto a las características de las propiedades que están en la base de testeo las que están en la base de entrenamiento tienen en promedio:  un área más grande, casi una habitación adicional, el mismo número de baños y parqueaderos, son de estrato 4 y las de testeo son de 5 y tienen en promedio la misma distancia hacia el parque, estación de Transmilenio, CAI y hospital más cercano. Es importante notar la presencia de valores extremos en las características estructurales de las propiedades, lo cual podría afectar el entrenamiento de los modelos (Tabla 1).  
+
+\begin{figure}[H]
+    \centering
+    \caption{Precio por metro cuadrado}
+    \includegraphics[width=0.8\linewidth]{Graficos/Figuras/mapa2.png}
+    \label{fig:mapa_precio}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \caption{Estrato por manzana}
+    \includegraphics[width=0.75\linewidth]{Graficos/Figuras/mapa3.png}
+    \label{fig:estrato}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \caption{Precio por metro cuadrado por decil de distancia al centro de negocios}
+    \includegraphics[width=0.65\linewidth]{Graficos/Figuras/barras1.png}
+    \label{fig:cbd}
+\end{figure}
+
+
+\begin{table}[!htbp] 
+    \centering 
+    \caption{Estadísticas Descriptivas: Bases de Entrenamiento y Testeo} 
+    \label{tab:estadisticas_entrenamiento_testeo} 
+
+    \resizebox{0.7\textwidth}{!}{ % Ajusta el tamaño de la primera tabla
+        \begin{tabular}{@{\extracolsep{5pt}}lccccc} 
+            \\[-1.8ex]\hline 
+            \hline \\[-1.8ex] 
+            \multicolumn{6}{c}{\textbf{Base de Entrenamiento}} \\
+            \hline \\[-1.8ex] 
+            Estadística & \multicolumn{1}{c}{Mean} & \multicolumn{1}{c}{St. Dev.} & \multicolumn{1}{c}{Min} & \multicolumn{1}{c}{Max} & \multicolumn{1}{c}{Median} \\ 
+            \hline \\[-1.8ex] 
+            Habitaciones & 3.145 & 1.535 & 0 & 11 & 3 \\ 
+            Baños & 2.858 & 1.093 & 1 & 16 & 3 \\ 
+            Área & 303.980 & 566.106 & 54.500 & 2,500.000 & 123.000 \\ 
+            Parqueaderos & 0.888 & 1.077 & 0 & 8 & 0 \\ 
+            Estrato & 4.239 & 1.574 & 0 & 6 & 4 \\ 
+            Dist\_Parque & 0.158 & 0.097 & 0.001 & 3.061 & 0.138 \\ 
+            Dist\_TM & 1.155 & 0.784 & 0.001 & 5.453 & 0.965 \\ 
+            Dist\_CAI & 0.767 & 0.375 & 0.002 & 2.957 & 0.737 \\ 
+            Dist\_Hospital & 0.923 & 0.535 & 0.010 & 3.566 & 0.811 \\ 
+            \hline \\[-1.8ex] 
+        \end{tabular}
+    }
+
+    \resizebox{0.7\textwidth}{!}{ % Segunda tabla
+        \begin{tabular}{@{\extracolsep{5pt}}lccccc} 
+            \\[-1.8ex]\hline 
+            \hline \\[-1.8ex] 
+            \multicolumn{6}{c}{\textbf{Base de Testeo}} \\
+            \hline \\[-1.8ex] 
+            Estadística & \multicolumn{1}{c}{Mean} & \multicolumn{1}{c}{St. Dev.} & \multicolumn{1}{c}{Min} & \multicolumn{1}{c}{Max} & \multicolumn{1}{c}{Median} \\ 
+            \hline \\[-1.8ex] 
+            Habitaciones & 2.381 & 0.961 & 0 & 11 & 2 \\ 
+            Baños & 2.693 & 0.946 & 1 & 10 & 3 \\ 
+            Área & 251.272 & 491.980 & 54.500 & 2,500.000 & 130.000 \\ 
+            Parqueaderos & 1.046 & 1.086 & 0 & 8 & 1 \\ 
+            Estrato & 5.237 & 1.402 & 0 & 6 & 6 \\ 
+            Dist\_Parque & 0.160 & 0.098 & 0.005 & 1.730 & 0.145 \\ 
+            Dist\_TM & 0.994 & 0.524 & 0.002 & 3.845 & 0.973 \\ 
+            Dist\_CAI & 0.659 & 0.401 & 0.008 & 2.732 & 0.572 \\ 
+            Dist\_Hospital & 0.864 & 0.402 & 0.011 & 3.421 & 0.845 \\ 
+            \hline \\[-1.8ex] 
+        \end{tabular} 
+    }
+
+    \par{\footnotesize{\textit{Nota: Dist\_ indica distancia en kilómetros y Área se mide en metros cuadrados.}}}
+\end{table}
+
+\newpage 
+
+
+\section{Modelos de clasificación}
+
+\subsection{Elastic Net}
+
+El primer intento de predicción se realizó utilizando el método de regularización Elastic Net. Este método combina las ventajas de Lasso y Ridge: por un lado, Lasso reduce la varianza del modelo al llevar algunos coeficientes exactamente a cero, lo que favorece la selección de variables; por otro lado, Ridge penaliza los coeficientes grandes para evitar el sobreajuste, sin eliminarlos completamente. El modelo Elastic Net tiene dos hiperparámetros principales: $\alpha$, que define si el modelo se comporta más como Lasso o Ridge, y $\lambda$, que regula la magnitud de la penalización. 
+\\
+\\
+En esta ocasión, la elección de hiperparámetros se realizó por medio del método de validación cruzada espacial en 5 folds. Además, no se definió una grilla para la búsqueda de los hiperparámetros del modelo, permitiendo que el software seleccione las combinaciones de hiperparámetros a explorar durante el proceso de entrenamiento del modelo. En este modelo se utilizaron la mayoría de las variables disponibles en la base de datos procesada. Además, las variables numéricas fueron normalizadas para evitar que aquellas variables con coeficientes de mayor magnitud recibieran una penalización más grande. En este entrenamiento se manejó el logaritmo natural del precio como variable objetivo y luego se transformaron los valores predichos a pesos, esto con el fin de reducir el impacto de los valores atípicos sobre los resultados de la predicción. El resultado del entrenamiento de este modelo se puede ver en la tabla \ref{tab:elasticnet_mae}. 
+
+\begin{table}[H]
+\centering
+\caption{Mejores combinaciones de hiperparámentros en Elastic Net}
+\begin{tabular}{ccc}
+\hline
+\textbf{Penalty} & \textbf{Mixture} & \textbf{MAE (mean)} \\
+\hline
+0.00000000129 & 0.789 & 0.251 \\
+0.00000278    & 0.894 & 0.251 \\
+0.000000215   & 0.472 & 0.251 \\
+0.0000000001  & 0.367 & 0.251 \\
+0.0000359     & 0.156 & 0.251 \\
+\hline
+\end{tabular}
+\label{tab:elasticnet_mae}
+\end{table}
+
+La tabla muestra que el mejor modelo obtuvo un Error Absoluto Medio (MAE) de validación cruzada de 0.251 y sus hiperparámetros fueron $\alpha=0.00000000129$ y $\lambda=0.789$. Al cargar este modelo a Kaggle, el MAE de prueba de este modelo fue de 232.5 millones de pesos. Este modelo resultó útil para la selección de variables en algoritmos más complejos y computacionalmente costosos, como el Bosque Aleatorio.
+
+
+\subsection{Bosque Aleatorio}
+Un bosque aleatorio (random forest) es un modelo de aprendizaje automático basado en un conjunto de árboles de decisión que trabajan en conjunto para generar predicciones más precisas y robustas. Cada árbol se entrena sobre una muestra aleatoria de los datos obtenida mediante bootstrap, y en cada división considera solo un subconjunto aleatorio de variables, lo que contribuye a reducir el riesgo de sobreajuste. En el contexto de predicción de precios de vivienda, este enfoque permite capturar relaciones complejas y no lineales entre múltiples características del inmueble, o el entorno en el que está ubicado, y su valor de mercado.
+\\
+\\
+Las variables incluidas en este modelo fueron aquellas que obtuvieron coeficientes distintos de cero en el modelo de Elastic Net, lo cual permite excluir predictores con baja capacidad explicativa y, al mismo tiempo, reducir el costo computacional del entrenamiento. Adicionalmente, se excluyó la variable de localidad, ya que al convertirla en variables ficticias (dummies), se incrementaba significativamente la dimensión de la matriz de predictores, encareciendo el proceso computacional. Nuevamente, se utilizó el logaritmo natural del precio como variable objetivo. 
+\\
+\\
+En el entrenamiento de este modelo se probaron distintas grillas para la selección de hiperparámetros en este modelo. La búsqueda del número de predictores a seleccionar para generar las particiones de los nodos de cada árbol se enfocó en un rango entre 5 y 50 predictores (de un total de 59 predictores). Por otra parte, la búsqueda del número mínimo de observaciones por nodo en se realizó en un rango entre 2 y 20 observaciones. Por último, el entrenamiento de este modelo también se realizó utilizando valdiación cruzada espacial en 5 folds.
+\\
+\\
+Como resultado de este proceso se enviaron tres Bosques Aleatorios a la competencia en Kaggle. Uno de ellos tenía tan solo 10 árboles y fue entrenado en una grilla con 25 combinaciones de los hiperparámetros. Este modelo obtuvo un error de prueba de 220.2 millones de pesos. El siguiente modelo fue entrenado con la misma grilla pero con 1000 árboles. Este modelo obtuvo un error de 208.7 millones de pesos, lo que muestra una mejora de 11.7 millones respecto al bosque de 10 árboles. Por último, se entrenó un modelo de 50 árboles, ajustando la grilla utilizada para hallar los hiperparámetros alrededor de los valores en los que se encontró el menor error absoluto medio de validación cruzada en los anteriores modelos. Por lo tanto, se redujo el rango de búsqueda del número de predictores para las particiones de los nodos a un rango entre 10 y 45 predictores. Además, se aumentó el tamaño de la grilla a 64 combinaciones de los hiperparámetros. Este modelo obtuvo un error de predicción de 211.4 millones de pesos, lo cual está más cerca del error del bosque con 1000 árboles que el de 10. Este ejercicio muestra la importancia de seleccionar una grilla adecuadamente antes de estimar modelos con mayor cantidad de árboles, con el fin de mejorar el error de predicción de estos modelos.
+
+\begin{table}[H]
+\centering
+\caption{Resultados de Random Forest}
+\begin{tabular}{ccccc}
+\hline
+\textbf{\# Árboles} & \textbf{Predictores} & \textbf{Min. Obs.} & \textbf{MAE (Cross)} & \textbf{MAE (Kaggle)} \\
+\hline
+1000 & 20 & 2  & 0.219 & 208,711,626.67 \\
+50   & 27 & 18 & 0.221 & 211,363,188.93 \\
+10   & 35 & 20 & 0.230 & 220,200,000.00 \\
+\hline
+\end{tabular}
+\label{tab:random_forest}
+\end{table}
+
+\subsection{Boosting}
+\subsubsection{Descripción del algoritmo}
+
+Con el propósito de estimar una predicción robusta del precio de las viviendas en el conjunto de validación, se utilizó también el método de estimación de Boosting como herramienta. Este algoritmo se basa en la combinación de un gran número de árboles de decisión $\hat{f}^{1}, \ldots, \hat{f}^{B}.$ El Boosting ajusta árboles de decisión a los residuales de los modelos estimados como mecanismo de aprendizaje. Se procede entonces a añadir el árbol recién creado a la función ajustada con el propósito de actualizar los residuales, de modo que: \[\hat{f}(x) \leftarrow \hat{f}(x) + \lambda \hat{f}^{b}(x).\]
+\[
+r_i \leftarrow r_i - \lambda \hat{f}^{b}(x_i).
+\]
+Cada uno de los árboles nuevos (ajustados a los residuales) es de menor tamaño (nodos terminales determinados por $d$) que el árbol original. Al ajustar pequeños árboles a los residuales, se mejora la función con la que se estima la predicción en áreas en donde es deficiente. El parámetro de encogimiento $\lambda$ reduce la velocidad de aprendizaje al permitir $b$ iteraciones de los árboles ajustados con los cuáles se actualizan los residuales. Al final del algoritmo, la predicción obtenida por boosting estaría dada por:
+\[
+\hat{f}(x) = \sum_{b=1}^{B} \lambda \hat{f}^{b}(x).
+\]
+
+\subsubsection{Hiperparámetros y XGBoost}
+
+De acuerdo con la descripción anterior, generalmente hay tres hiperparámetros claves en el algoritmo de Boosting: 
+
+1). El número de árboles construidos para ajustar los residuales, $b$. Este parámetro es esencial en el proceso de Boosting, pues representa el número de veces que se realiza el proceso de aprendizaje mencionado anteriormente. Un número muy alto de $b$ puede sobreajustar sobre los datos de entrenamiento; por ende, es deseable encontrar este parámetro a través de validación cruzada.
+
+2). El factor de encogimiento $\lambda$. También entendido como una "tasa de aprendizaje", controla la tasa a la cual se aprende de los residuales. Un valor común para este parámetro es 0.01, el cual utilizaremos con frecuencia en la construcción de los modelos.
+
+3). La complejidad del árbol, controlada por $d$. Este parámetro determina el número de particiones en cada árbol. También entendido como la profundidad de las interacciones del árbol. Usualmente se fija entre valores de 4 y 8.
+\\
+\\
+A su vez, estos parámetros construyen "Weak Learners". No obstante, para estimar las predicciones, se utiliza XGBoost; una implementación optimizada del algoritmo de "Gradient Boosting". Este algoritmo pone un mayor énfasis en la minimización de la función de pérdidas que en exclusivamente el ajuste de pesos. Concretamente, se busca minimizar la función de pérdida de la predicción anterior mas el nuevo árbol a través de una aproximación de gradiente descendiente. XGBoost está diseñado para optimizar el rendimiento del cálculo de los pseudo-residuales, penalizando la complejidad del modelo (número de bifurcaciones y cuán lejos la predicción de la hoja está de ceros). Esto tiene implicaciones sobre el parámetro de profundidad del árbol, pues favorece a modelos menos ajustados pero con potencial mejor poder explicativo sobre los datos de validación. Esta aproximación asume los siguientes hiperparámetros adicionales:
+\\
+\\
+4). La reducción en la función de pérdida mínima requerida para realizar una partición adicional en un nodo del árbol, $\gamma$. Entre más grande sea $\gamma$, más conservador será el agortimo en generar nodos adicionales. Tiene rango $[0,\infty]$, pero se utilizarán valores $(0,1)$.
+
+5). El mínimo número de observaciones por nodo, $z$. si la partición del árbol resulta en un nodo en donde el total de observaciones sea menor a $z$, el algoritmo no hará esa partición. 
+
+6). La proporción de variables utilizadas para construir el árbol ajustado a los residuales, $\phi$. Como en los Bosques Aleatorios, se toma una submuestra de las variables disponibles para aprovechar el carácter aditivo del algoritmo para encontrar información no explicada por el árbol anterior, e incorporarla al modelo.
+
+7). La proporción de datos de entrenamiento utilizados para entrenar el algoritmo, $\kappa$. Este parámetro previene el sobreajuste. El remuestreo ocurre en cada iteración del Boosting.
+
+\subsubsection{XGBoost 1}
+El primer modelo entrenado a través del algoritmo previamente descrito utilizó como estrategia de validación una validación cruzada tradicional en 5 folds del conjunto de entrenamiento. La validación cruzada iteró sobre los siguientes valores de cada hiperparámetro: $b \in \{250, 500\}$, $\lambda \in \{0.1, 0.01\}$, $d \in \{1, 5\}$, $\gamma \in \{0, 1\}$, $z \in \{10, 25\}$, $\phi \in \{0.4, 0.7, 1\}$, $\kappa = 0.4$.
+ El propósito de la fijación de estos hiperparámetros, bajo la luz de la discusión anterior, fue procurar por una estimación con baja varianza y por ende poco sobreajuste a los datos de entrenamiento. Se estima sobre una proporción reducida de la información de entrenamiento. Más aún, dada la dimensión de los datos, se buscó una estimación robusta y compleja que sería, a su vez, naturalmente penalizada por el algoritmo (dada por $\gamma$) con el fin de encontrar una profundidad óptima, a modo de inducción hacia atrás. Las bajas tasas de aprendizaje fueron contrarrestadas con un alto número de iteraciones. Las variables utilizadas para entrenar el modelo comprenden todas las variables de la base de datos a excepción de las variables clasificadoras de unidad de observación geográfica, como latitudes o longitudes, UPZs, barrios, localidades, manzanas, entre otras. Esto es porque en el conjunto de validación no existen algunos de los niveles observados en estas variables para el conjunto de entrenamiento. La lista completa de variables utilizadas está dada por el vector ${X}_b$.
+
+\[
+\mathbf{X}_b = \left\{
+\begin{array}{l}
+\text{Habitaciones, Tipo de Propiedad, Distancia a Biblioteca, Distancia a Colegio, Distancia a Museo,} \\
+\text{Distancia a Parque, Distancia a Centro Comercial, Distancia a Transporte Público, Estrato,} \\
+\text{Avalúo Catastral, Distancia a SITP, Homicidios, Número de Lesiones, Hurtos a Personas,} \\
+\text{Hurtos de Autos, Hurtos a Viviendas, Hurtos de Bicicletas, Hurtos de Motos,} \\
+\text{Hurtos a Comercios, Hurtos de Celulares, Delitos Sexuales, Violencia Intrafamiliar,} \\
+\text{Restaurantes Cercanos, Distancia a Cicloruta, Distancia al Centro, Distancia al CAI,} \\
+\text{Distancia a Hospital, Distancia a Gimnasio, Distancia a Tienda, Distancia a Farmacia,} \\
+\text{Tiene BBQ, Tiene Terraza, Tiene Depósito, Tiene Chimenea, Cocina Americana,} \\
+\text{Tiene Conjunto Residencial, Tiene Ascensor, Tiene Patio, Es Dúplex,} \\
+\text{Tiene Piscina, Tiene Sauna, Tiene Jacuzzi, Tiene Altillo, Tiene Zona Verde,} \\
+\text{Número de Baños, Área, Número de Parqueaderos, Avalúo Comercial}
+\end{array}
+\right\}
+\]
+
+Los hiperparámetros óptimos seleccionados mediante validación cruzada para el modelo XGBoost fueron los siguientes: se construyeron \( b = 500 \) árboles con una profundidad máxima de \( d = 5 \), una tasa de aprendizaje de \( \lambda = 0{.}1 \), y una reducción mínima en la función de pérdida para permitir una bifurcación de \( \gamma = 1 \). Además, se utilizó el 100\% de las variables disponibles en cada iteración (\( \phi = 1 \)), un número mínimo de observaciones por nodo de \( z = 10 \), y una proporción de datos de entrenamiento usada por iteración de \( \kappa = 0{.}4 \). La predicción con estos parámetros tuvo un $MAE= 187$ en millones COP. Esta fue la segunda mejor predicción en términos relativos.
+
+\subsubsection{XGBoost 2}
+
+El segundo modelo entrenado a través de este algoritmo fue casi idéntico al primero: misma estrategia de validación, mismas variables (${X}_b$), y casi todos los hiperparámetros fijados de la misma forma. El único cambio realizado fue fijar $b=1000$, con el fin investigativo de observar si la tasa de aprendizaje era adecuada para maximizar el ajuste residual. Los parámetros óptimos no cambiaron a diferencia de $b$ que ahora estaba fijo. La predicción con esta aproximación tuvo un $MAE= 192$ en millones COP, lo cuál sugiere que un aumento en las iteraciones puede sobreajustar el modelo anterior y empeorar el ajuste predictivo del modelo a los datos de validación. Esta fue la tercera mejor predicción en términos relativos.
+
+\subsubsection{XGBoost 3}
+
+El tercer modelo entrenado a través de este algoritmo utilizó una estrategia de validación basada en validación cruzada espacial en 5 folds. En vista de la posible autocorrelación espacial, se quiere minimizar el efecto de "contaminación" de observaciones adyacentes geográficamente a los datos de entrenamiento. Esta metodología se enfocó en la separación de las observaciones con una grilla basada en la longitud y la latitúd de cada observación, fijando el sistema de referenciación de coordenadas EPSG 4326. Adicionalmente, para este proceso, se normalizaron las variables y se realizaron interacciones entre las variables de Tipo de Propiedad y Distancia a Parques, y Tipo de Propiedad y el Área Total del inmueble para capturar efectos heterogéneos. Se utilizaron todas las variables en ${X}_b$ a excepción de la variable de Distancia al Centro, pues no fue compatible con el algoritmo de normalización. La validación iteró sobre los siguientes valores de los hiperparámetros: \( b \in \{250, 500, 1000\} \),  \( \lambda \in \{0.01, 0.1\} \), \( d \in \{3, 6, 10\} \), \( \gamma \in \{0, 1, 10\} \), \( \kappa \in \{0.4, 0.75, 1\} \),  \( \phi \in \{7/p, 25/p\} \), donde \( p \) representa el número total de predictores disponibles. Los hiperparámetros óptimos obtenidos después de la validación fueron: $b = 1000,\ \lambda = 0{.}01,\ d = 6,\ \gamma = 0,\ z = 25,\ \phi = 1,\ \kappa = 1$. La predicción con estos parámetros tuvo un $MAE= 187$ en millones COP. Esta fue la mejor predicción. La discusión sobre el tipo de validación (tradicional vs. espacial) y las variables utilizadas se reservará para la sección en la que se discute a mayor profundidad el mejor modelo.
+
+
+ 
+
+\subsection{Red Neuronal}
+
+Se entrenó una red neuronal con múltiples capas para predecir el precio de los apartamentos en Chapinero. Durante el proceso de entrenamiento se implementaron tres arquitecturas con distintos niveles de profundidad: Bajo (10 nodos y una sola capa oculta), Medio (128 nodos y 5 capas ocultas cada una con menos nodos que sus capas antecesoras) y Alto (256 nodos y 6 capas ocultas cada una con menos nodos que sus capas antecesoras). Para todas las arquitecturas se incluyó para todas las capas una capa que apaga aleatoriamente el 30\% de los nodos para evitar sobre ajustar los datos. Después de revisar las arquitecturas vistas en clase para tener un punto de partida escogimos estas tres arquitecturas para ver cómo se comportaba el error fuera de muestra a medida que iba aumentado la profundidad del modelo.
+\\
+\\
+ De las tres arquitecturas ya mencionadas la que obtuvo mejores resultados fue la arquitectura de profundidad media (MAE de 218 millones) seguida por la baja (MAE 374 millones) y el alta (MAE 833 millones) respectivamente. De esto podemos inferir que la red de profundidad media logro el mejor balance entre aprender la función y no sobre ajustar los datos. Los tres modelos fueron entrenados con la misma base de datos que tenía 137 variables sobre las características estructurales de las viviendas (área, número de baños y habitaciones, estrato y comodidades del edificio como sauna, bbq piscina) y de su cercanía a diversas amenidades (parques, hospitales, restaurantes, arbolado público y al centro de negocios de la ciudad CBD, entre otras). El gran número de variables se debe al “one hot encoding” realizado para convertir las variables categorías en numéricas para poder estimar el modelo. Además, se re-escalo lo variable de respuesta dividiéndola por un millón para estabilizar la red y mejorar la predicción. 
+\\
+\\
+Las redes neuronales entrenadas tuvieron en un peor desempeño que random forest, XGBoost y el Superlearner descritos en las otras secciones. Consideramos que este resultado ocurrió porque la flexibilidad de las redes genero un sobre ajuste de los datos cuando buscamos reducir más el error. Problema que no padecieron en la misma medida los demás modelos.  
+
+
+\subsection{Super Learner}
+
+El modelo de Super Learner se realizó con dos conjuntos de algoritmos, el primero con regresión lineal, CART´s y Elastic Net, al segundo conjunto se le agregó Random Forest. Se realizaron 3 estimaciones, una con cada grupo de modelos y otra con el primer modelo estimando el logaritmo natural de precio con un total de 54 variables independientes. La estimación con mejor ajuste del MAE fue el modelo con el segundo grupo de algoritmos, seguido del primer grupo con el precio sin alterar y por último el primer grupo con el logaritmo natural del precio.
+\\
+\\
+El mejor desempeño del modelo de Super Learner que incluye Random Forest se explica por su capacidad superior para capturar relaciones no lineales complejas entre las variables predictoras y el precio de las viviendas. Este modelo obtuvo un error absoluto medio (MAE) de aproximadamente 193 millones, mientras que el Super Learner sin Random Forest alcanzó un MAE mucho mayor, de 233 millones. La diferencia en estos valores indica una mejora significativa en la precisión del modelo cuando se incorpora Random Forest al conjunto de algoritmos base.
+\\
+\\
+El primer modelo muestra una limitación clara. La regresión lineal, aunque útil para identificar tendencias globales, parte de la suposición de relaciones lineales entre las variables independientes y la dependiente. CART´s, por su parte, puede manejar cierta no linealidad, pero al ser un único árbol, tiende a ser inestable y propenso al sobreajuste. Elastic Net, al recibir un peso de 0 en el Super Learner, no contribuyó a mejorar la predicción, lo que indica que su desempeño fue inferior incluso en comparación con los otros dos modelos base.
+\\
+\\
+En contraste, al añadir Random Forest en el segundo modelo, el conjunto mejora con un algoritmo que reduce la varianza de los árboles individuales mediante el promedio de múltiples árboles entrenados en subconjuntos aleatorios de los datos. Esta estructura le permite detectar interacciones sutiles y no lineales entre las variables, características comunes en el problema de predicción del precio de viviendas, donde influyen múltiples factores como el área, la ubicación, entre otros.
+
+
+\section{Modelo final}
+
+\begin{figure}[H]
+    \centering
+    \caption{Validación cruzada espacial con bloques definidos por coordenadas geográficas (EPSG:4326)}
+    \includegraphics[width=0.5\linewidth]{Graficos/Figuras/bloquescvespacial.png}
+    \label{fig:val_cruzada_espacial}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\caption{Importancia relativa de las variables predictoras en el modelo XGBoost 3}
+\begin{tabular}{rlr}
+  \hline
+ & Variable & Importancia \\ 
+  \hline
+1 & Área & 100.000 \\ 
+2 & Baños & 74.192 \\ 
+3 & Estrato & 33.334 \\ 
+4 & Parqueaderos & 30.502 \\ 
+5 & Habitaciones & 16.267 \\ 
+6 & Distancia museo & 8.787 \\ 
+7 & Distancia colegio & 7.904 \\ 
+8 & Distancia Transmilenio & 7.168 \\ 
+9 & Distancia gimnasio & 7.109 \\ 
+10 & Tipo de propiedad: Casa & 7.069 \\ 
+  \hline
+\end{tabular}
+
+\label{tab:importancia-xgboost}
+\end{table}
+
+El modelo con la métrica de desempeño más sobresaliente fue la tercera iteración del modelo construído usando XGBoost (XGBoost 3). Los parámetros óptimos de este modelo fueron: $b = 1000,\ \lambda = 0{.}01,\ d = 6,\ \gamma = 0,\ z = 25,\ \phi = 1,\ \kappa = 1$. Este modelo utilizó como estrategía de validación una validación cruzada espacial de 5 folds separados en grillas de acuerdo con la longitud y latitud de las observaciones (ver Figura 4). A través de la opción "VarImp" del paquete caret en R, fue posible obtener una medida relativa de la importancia de las variables utilizadas en este modelo (ver Tabla 1). La predicción usando este modelo obtuvo un  $MAE= 187 $ en millones COP.
+\\
+\\
+En primer lugar, se observa que, relativo a los demás modelos entrenados utilizando XGBoost, este fue el único que utilizó validación cruzada espacial. A diferencia de las otras iteraciones, el uso de validación cruzada espacial permitió reducir la contaminación por dependencia de las observaciones en el márgen de los conjuntos de entrenamiento y de validación, y así producir generalizaciones con menor varianza predictiva y por consiguiente menor autocorrelación espacial. A pesar de que la mejora en el MAE fue marginal (relativo al segundo mejor modelo, XGBoost 1), se demuestra que esta aproximación espacial a la estrategia de validación sí tuvo un impacto positivo en la capacidad predictiva del modelo. La segmentación por longitud y latitud tuvo un alto nivel de granularidad para identificar observaciones dependientes georgáficamente, potencialmente en mayor medida que una segmentaión por barrio, localidad, o UPZ.
+\\
+\\
+En segundo lugar, a través de este enfoque de validación, se encontraron hiperparámetros coherentes a la luz de la teoría vista en clase y las características del algoritmo de XGBoost y el Gradient Boosting. En particular, este modelo se caracterizó por tener un aprendizaje lento, contrarrestado por un gran número de iteraciones con el fin de prevenir el sobreajuste. Más aún, aunque la profundidad de cada árbol haya sido mayor que en los demás XGBoost y los requisitos para la reducción mínima en la función de pérdida para realizar particiones fueron nulos, se procuró por la limitación de la segmentación a través de un $z=25$. A la misma vez, se utilizaron todas las variables y observaciones disponibles para ajustar el modelo. Aunque esta aproximación haya sido en su mayoría flexible, se mantuvieron restricciones principalmente sobre la división de nodos para evitar el sobreajuste.
+\\
+\\
+En tercer lugar, como observado en la Tabla 4, las 10 variables más importantes para entrenar el modelo fueron obtenidas tanto a través del procesamiento de texto como del procesamiento de datos geográficos. Las cinco variables más importantes; Área, Número de Baños, Estrato, Número de Parqueaderos, y Número de Habitaciones fueron obtenidas a través de expresiones regulares. La importancia de estas variables no sólo es indicativa de su alta frecuencia de aparición en las entradas de texto de Properati, pero también de su relevancia para el avalúo de una vivienda. El modelo hubiera tenido potencialmente una mejor predicción si la variable de Distancia al Centro hubiera sido compatible con el proceso de normalización.
+
+
+
+\section{Conclusión}
+
+La pregunta que motivó el desarrollo de este análisis fue clara: ¿cuál es el mejor modelo para predecir el precio de las viviendas, y por qué? En la búsqueda por responderla, se entrenaron múltiples algoritmos con distintos niveles de complejidad y estrategias de validación, incluyendo Elastic Net, Random Forest, redes neuronales, distintos esquemas de XGBoost y el algoritmo de ensamble Super Learner. La evaluación de los modelos se realizó con base en el Error Absoluto Medio (MAE).
+\\
+\\
+Entre todos los modelos entrenados, el mejor desempeño predictivo fue alcanzado por XGBoost 3, con un MAE de 187 millones de COP. Este modelo destacó no solo por sus hiperparámetros optimizados, sino especialmente por el uso de una validación cruzada espacial, que evitó el sobreajuste en zonas geográficas similares entre entrenamiento y validación. Su configuración combinó una alta capacidad de aprendizaje con mecanismos de regularización efectivos. Además, el modelo capturó relaciones complejas gracias a la inclusión de interacciones específicas y a una cuidadosa selección de variables. Las más influyentes —como área, número de baños, estrato y parqueaderos— reflejan atributos estructurales relevantes en el mercado inmobiliario, validados empíricamente como determinantes del valor de la propiedad.
+\\
+\\
+El segundo mejor modelo fue XGBoost 1, seguido por Random Forest y Super Learner con Random Forest, todos con desempeños cercanos al óptimo. En particular, el Super Learner que incluyó Random Forest superó al que no lo hizo (MAE de 189.8 millones frente a 235.2 millones), evidenciando cómo la combinación de modelos base robustos y no lineales —como los bosques aleatorios— puede mejorar la precisión del conjunto. En contraste, el modelo sin Random Forest mostró un peso nulo para Elastic Net, indicando su escasa relevancia en el ensamblaje, y un sesgo hacia la regresión lineal y los CARTs, modelos más limitados en capturar interacciones y no linealidades complejas.
+\\
+\\
+Respecto al modelo Elastic Net, si bien no resultó competitivo en términos de error de predicción, su utilidad radicó en la selección inicial de variables, permitiendo reducir la dimensionalidad y facilitar el entrenamiento de modelos más exigentes computacionalmente. Las redes neuronales, por su parte, ofrecieron resultados mixtos: su arquitectura de profundidad media logró un desempeño razonable (MAE de 218 millones), pero tanto las versiones más simples como las más profundas sufrieron de subajuste y sobreajuste, respectivamente. Esto confirma que, en contextos como este, el equilibrio entre complejidad y regularización es crítico, y que una alta flexibilidad no garantiza una mejor predicción. Finalmente, a modo de recomendar metodologías para próximas estimaciones, el uso de validación cruzada espacial y la construcción de un modelo de Super Learner con los modelos con el mejor desempeño individual puede distribuir de la mejor manera el peso de los modelos y así obtener una estimación más precisa.
+
+\newpage
+\begin{thebibliography}{99} %% use BibTeX or add references manually
+
+\\
+
+\bibitem{Bhatt2024}
+Bhatt, G. (2024, December 4). Housing's Unique Role in Lives and Economies Demands Greater Understanding. \textit{IMF Blog}. Recuperado de : \url{https://www.imf.org/en/Blogs/Articles/2024/12/04/housings-unique-role-in-lives-and-economies-demands-greater-understanding}
+
+\\
+
+\bibitem{elMouna2023}
+el Mouna, L., Silkan, H., Haynf, Y., Nann, M. F., \& Tekouabou, S. C. K. (2023). A Comparative Study of Urban House Price Prediction using Machine Learning Algorithms. \textit{E3S Web of Conferences}, \textit{418}. \url{https://doi.org/10.1051/e3sconf/202341803001}
+
+\\
+
+\bibitem{Limsombunchai2004}
+Limsombunchai, V., Gan, C., \& Lee, M. (2004). House Price Prediction: Hedonic Price Model vs. Artificial Neural Network. \textit{American Journal of Applied Sciences}, \textit{1}(3), 193--201. \url{https://doi.org/10.3844/ajassp.2004.193.201}
+
+\\
+
+\bibitem{SDM_EM2019} Secretaría Distrital de Movilidad. (2019). \emph{Resultados de la Encuesta de Movilidad de Bogotá y municipios vecinos}. Observatorio de Movilidad Bogotá. Recuperado de: \url{https://observatorio.movilidadbogota.gov.co/sites/observatorio.movilidadbogota.gov.co/files/2024-06-02/encuesta/Cartilla%20resultados%20Encuesta%20de%20Movilidad%202019.pdf}
+
+
+
+\\
+
+\bibitem{Sharma2024}
+Sharma, H., Harsora, H., \& Ogunleye, B. (2024). An Optimal House Price Prediction Algorithm: XGBoost. \textit{Analytics}, \textit{3}(1), 30--45. \url{https://doi.org/10.3390/analytics3010003}
+
+
+
+\end{thebibliography}
+
+
+\end{document}
+
+
+
+
