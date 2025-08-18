@@ -167,7 +167,3 @@ bar1 <- ggplot(resumen, aes(x = factor(decil_dist), y = precio_m2_prom)) +
 bar1
 ggsave("views/barras1.png", width = 5, height = 4, plot = bar1)
 
-## Tabla de estadísticas descriptivas ------------------------------------------
-
-
-
